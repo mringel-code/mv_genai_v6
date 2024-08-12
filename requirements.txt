@@ -1,0 +1,6 @@
+Flask
+Werkzeug
+openai
+pandas
+openpyxl
+python-dotenv
