@@ -35,18 +35,18 @@ def allowed_file(filename):
 def format_message_content(content):
     if not isinstance(content, str):
         content = str(content)
-    # Replace headers
-    content = re.sub(r'###### (.*?)\n', r'<h6>\1</h6>', content)
-    content = re.sub(r'##### (.*?)\n', r'<h5>\1</h5>', content)
-    content = re.sub(r'#### (.*?)\n', r'<h4>\1</h4>', content)
-    content = re.sub(r'### (.*?)\n', r'<h3>\1</h3>', content)
-    content = re.sub(r'## (.*?)\n', r'<h2>\1</h2>', content)
-    content = re.sub(r'# (.*?)\n', r'<h1>\1</h1>', content)
     # Bold text
-    content = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', content)
+    formatted_content = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', content)
+    # Headers
+    formatted_content = re.sub(r'###### (.*?)\n?', r'<h6>\1</h6>', formatted_content)
+    formatted_content = re.sub(r'##### (.*?)\n?', r'<h5>\1</h5>', formatted_content)
+    formatted_content = re.sub(r'#### (.*?)\n?', r'<h4>\1</h4>', formatted_content)
+    formatted_content = re.sub(r'### (.*?)\n?', r'<h3>\1</h3>', formatted_content)
+    formatted_content = re.sub(r'## (.*?)\n?', r'<h2>\1</h2>', formatted_content)
+    formatted_content = re.sub(r'# (.*?)\n?', r'<h1>\1</h1>', formatted_content)
     # Convert new lines to <br>
-    content = content.replace('\n', '<br>')
-    return content
+    formatted_content = formatted_content.replace('\n', '<br>')
+    return formatted_content
 
 # OpenAI Assistant Configuration
 function_calling_tool = [
