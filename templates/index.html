@@ -45,13 +45,13 @@
             overflow: hidden; /* Ensure the chat window itself doesn't scroll */
         }
         .chat-messages {
-            flex: 1;  /* Adjust the size to fit */
-            overflow-y: auto;  /* Enable vertical scrolling */
+            flex: 1;
+            overflow-y: auto;
             border: 1px solid #ccc;
             padding: 10px;
             margin-bottom: 10px;
             background-color: #fafafa;
-            max-height: calc(100vh - 400px);  /* Adjust this value based on your needs */
+            max-height: calc(100vh - 400px); /* Adjust based on your needs */
         }
         .chat-message {
             margin-bottom: 10px;
@@ -89,12 +89,19 @@
         .chat-input button:disabled {
             background-color: #cccccc;
         }
-        input[type="file"] {
-            display: block;
-            margin-bottom: 10px;
+        .suggestions {
+            margin-top: 20px;
         }
-        h2, h3 {
-            font-size: 1.2em;
+        .suggestions ul {
+            list-style: none;
+            padding: 0;
+        }
+        .suggestions li {
+            cursor: pointer;
+            color: #007bff;
+        }
+        .suggestions li:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
@@ -108,7 +115,7 @@
             <div class="sidebar">
                 <h2>Upload Documents</h2>
                 <form method="POST" action="/" enctype="multipart/form-data">
-                    <input type="file" name="document" aria-label="Choose file to upload">
+                    <input type="file" name="document" aria-label="Choose document file to upload">
                     <input type="submit" value="Upload">
                 </form>
                 <h3>Uploaded Documents:</h3>
@@ -125,6 +132,10 @@
                     <input type="text" id="userInput" placeholder="Type your message here..." aria-label="Type message">
                     <button onclick="sendMessage()" id="sendButton">Send</button>
                 </div>
+                <div class="suggestions">
+                    <h3>Follow-up Questions</h3>
+                    <ul id="suggestionsList"></ul>
+                </div>
             </div>
             <div class="documents-right">
                 <h2>Generated Documents</h2>
@@ -137,56 +148,60 @@
             const messageClass = sender === 'user' ? 'user' : 'assistant';
             const messageContainer = document.getElementById('chatMessages');
         
-            // Apply formatting or escaping rules here
             const formattedMessage = formatMessageContent(message, sender);
         
-            messageContainer.innerHTML += `<div class="chat-message ${messageClass}"><strong>${sender === 'user' ? 'You' : 'Assistant'}:</strong> ${formattedMessage}</div>`;
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('chat-message', messageClass);
+            messageElement.innerHTML = `<strong>${sender === 'user' ? 'You' : 'Assistant'}:</strong> ${formattedMessage}`;
+        
+            messageContainer.appendChild(messageElement);
             messageContainer.scrollTop = messageContainer.scrollHeight;
         }
         
-        function formatMessageContent(content, sender) {
-            // Example for handling line breaks and simple HTML tags
-            let formattedContent = content;
-        
-            // Escape HTML tags if necessary
-            formattedContent = formattedContent.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        
-            // Convert line breaks to <br> for the assistant's messages
-            if (sender === 'assistant') {
-                formattedContent = formattedContent.replace(/\n/g, "<br>");
-            }
-        
-            // Here, you might add more formatting, like detecting URLs or markdown syntax
-        
-            return formattedContent;
+        function formatMessageContent(content) {
+            // Directly pass the HTML content without escaping
+            return content;
         }
         
-        function sendMessage() {
+        function sendMessage(userInput = null) {
             const userInputElement = document.getElementById('userInput');
             const sendButton = document.getElementById('sendButton');
-            const userInput = userInputElement.value;
-        
-            if (userInput) {
-                appendMessage(userInput, 'user');
+            const userMessage = userInput || userInputElement.value;
+
+            if (userMessage) {
+                appendMessage(userMessage, 'user');
                 userInputElement.value = '';
                 sendButton.disabled = true;
-        
+
                 fetch('/chat', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ user_input: userInput })
+                    body: JSON.stringify({ user_input: userMessage })
                 })
                 .then(response => response.json())
                 .then(data => {
-                    data.forEach(message => appendMessage(message.content, 'assistant'));
+                    data.messages.forEach(message => appendMessage(message.content, 'assistant'));
+                    suggestFollowUpQuestions(data.suggestions);
                     sendButton.disabled = false;
                 })
                 .catch(() => {
                     sendButton.disabled = false;
                 });
             }
+        }
+
+        function suggestFollowUpQuestions(questions) {
+            const suggestionsList = document.getElementById('suggestionsList');
+            suggestionsList.innerHTML = ''; // Clear existing suggestions
+
+            questions.forEach(question => {
+                const li = document.createElement('li');
+                li.textContent = question;
+                li.onclick = () => sendMessage(question);
+                suggestionsList.appendChild(li);
+            });
         }
     </script>
 </body>

@@ -11,8 +11,6 @@ load_dotenv()
 
 # Initialize OpenAI client
 api_key = os.getenv('OPENAI_API_KEY')
-if not api_key:
-    raise Exception("OPENAI_API_KEY is not set in the environment.")
 client = openai.OpenAI(api_key=api_key)
 
 app = Flask(__name__)
@@ -29,14 +27,14 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
 
+# Helper functions for file uploads
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+# Function to format content
 def format_message_content(content):
-    if not isinstance(content, str):
-        content = str(content)
-    formatted_content = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', content)  # bold text
-    formatted_content = formatted_content.replace('\n', '<br>')  # new paragraphs
+    formatted_content = re.sub(r'\*\*(.*?)\*\*', r'\033[1m\1\033[0m', content)  # bold text
+    formatted_content = formatted_content.replace('\n\n', '\n\n')  # new paragraphs
     return formatted_content
 
 # OpenAI Assistant Configuration
@@ -207,7 +205,7 @@ def create_output(run, tool_calls, path, thread):
             print("Failed to submit tool outputs:", e)
     else:
         print("No tool outputs to submit.")
-
+        
 def create_thread(content_user_input):
     thread = client.beta.threads.create()
     message = client.beta.threads.messages.create(
@@ -217,66 +215,7 @@ def create_thread(content_user_input):
     )
     return thread
 
-def extract_and_format_content(message_content):
-    """Extract, convert, and format the content of the message."""
-    try:
-        if isinstance(message_content, str):
-            content = message_content
-        elif hasattr(message_content, 'value'):
-            content = message_content.value
-        elif hasattr(message_content, 'text'):
-            if hasattr(message_content.text, 'value'):
-                content = message_content.text.value
-            else:
-                content = message_content.text
-        else:
-            content = str(message_content)
-        
-        formatted_content = format_message_content(content)
-        return formatted_content
-    except Exception as e:
-        print(f"Error extracting and formatting content: {e}")
-        return ""
-
-def generate_follow_up_questions(response_text):
-    if not isinstance(response_text, str):
-        response_text = str(response_text)
-
-    response_lower = response_text.lower()
-    questions = []
-    
-    if 'performance' in response_lower:
-        questions.append("How can I improve my performance?")
-        questions.append("What are the key metrics?")
-    if 'team' in response_lower:
-        questions.append("How is the team performing?")
-        questions.append("What are the individual team member stats?")
-    if not questions:
-        questions.append("Can you tell me more?")
-    
-    return questions
-
-def process_messages(messages, user_input):
-    conversation_history = []
-    for message in messages:
-        if hasattr(message, 'content'):
-            if isinstance(message.content, list):
-                for content_item in message.content:
-                    if hasattr(content_item, 'text') or hasattr(content_item, 'value'):
-                        formatted_content = extract_and_format_content(content_item)
-                        # Skip messages that just repeat the user input
-                        if formatted_content.lower() != user_input.lower():
-                            conversation_history.append({"role": "assistant", "content": formatted_content})
-                            print(f"Processed content: {formatted_content}")
-                            break  # Only handle the first relevant content
-            else:
-                formatted_content = extract_and_format_content(message.content)
-                # Skip messages that just repeat the user input
-                if formatted_content.lower() != user_input.lower():
-                    conversation_history.append({"role": "assistant", "content": formatted_content})
-                    print(f"Processed content: {formatted_content}")
-    return conversation_history
-
+# Route for home page and uploading documents
 @app.route('/', methods=['GET', 'POST'])
 def home():
     if request.method == 'POST' and 'document' in request.files:
@@ -288,51 +227,89 @@ def home():
     uploaded_files = os.listdir(app.config['UPLOAD_FOLDER'])
     return render_template('index.html', uploaded_files=uploaded_files)
 
+def generate_follow_up_questions(response_text):
+    # Example heuristic to generate follow-up questions
+    response_lower = response_text.lower()
+    questions = []
+    if 'performance' in response_lower:
+        questions.append("How can I improve my performance?")
+        questions.append("What are the key metrics?")
+    if 'team' in response_lower:
+        questions.append("How is the team performing?")
+        questions.append("What are the individual team member stats?")
+    if not questions:
+        questions.append("Can you tell me more?")
+    return questions
+
+# Route to handle chat functionality with AJAX
 @app.route('/chat', methods=['POST'])
 def chat():
+    # Initialize Assistant
+    assistant = create_assistant(client, function_calling_tool, file_search_tool)
+    
+    content_user_input = request.json.get('user_input')
+    
+    file_paths_bucket = ['/home/ec2-user/environment/mv_genai/Input_1_sales.pdf', '/home/ec2-user/environment/mv_genai/Input_2_Mitarbeitergespräche.pdf','/home/ec2-user/environment/mv_genai/Input_3_Leistungsabfall_roadmap.pdf']
+    create_data_base(file_paths_bucket, assistant.id)
+    
+    path = '/home/ec2-user/environment/mv_genai/Maklervertrieb_Zahlen_v0.2_wip.xlsx'
+    
+    conversation_history = []
+  
+    thread = create_thread(content_user_input)
+
+    run = client.beta.threads.runs.create_and_poll(
+        thread_id=thread.id, assistant_id=assistant.id
+    )
+
+    # Process the run result
+    if run.status == 'completed':
+        print(f"Run status: {run.status}")
+        messages = list(client.beta.threads.messages.list(thread_id=thread.id, run_id=run.id))
+        print(messages)
+        #message_content = get_message_content(messages[0])
+        #message = messages[0]
+        for message in messages:
+            message_content = message.content[0].text
+            annotations = message_content.annotations
+            citations = []
+            for index, annotation in enumerate(annotations):
+                    if file_citation := getattr(annotation, "file_citation", None):
+                        cited_file = client.files.retrieve(file_citation.file_id)
+                        message_content.value = message_content.value.replace(annotation.text, f"[{cited_file.filename}]")
+                        citations.append(f"[{index}] {cited_file.filename}")
+            conversation_history.append({"role": "assistant", "content": message_content.value})
+    elif run.status == 'requires_action':
+        print(f"Run status: {run.status}")
+        tool_calls = run.required_action.submit_tool_outputs.tool_calls
+        create_output(run, tool_calls, path, thread)
+        messages = list(client.beta.threads.messages.list(thread_id=thread.id))
+        print(messages)
+        #message_content = get_message_content(messages[0])
+        #message = messages[0]
+        for message in messages:
+            message_content = message.content[0].text
+            annotations = message_content.annotations
+            citations = []
+            for index, annotation in enumerate(annotations):
+                    if file_citation := getattr(annotation, "file_citation", None):
+                        cited_file = client.files.retrieve(file_citation.file_id)
+                        message_content.value = message_content.value.replace(annotation.text, f"[{cited_file.filename}]")
+                        citations.append(f"[{index}] {cited_file.filename}")
+            conversation_history.append({"role": "assistant", "content": message_content.value})
+            break
+
+    return jsonify(conversation_history)
+
+def get_message_content(message):
     try:
-        print("Creating assistant...")
-        assistant = create_assistant(client, function_calling_tool, file_search_tool)
-        
-        content_user_input = request.json.get('user_input')
-        print("Received user input:", content_user_input)
-        
-        file_paths_bucket = [os.path.join(base_dir, 'uploads', 'docs', filename) for filename in ['Input_1_sales.pdf', 'Input_2_Mitarbeitergespräche.pdf', 'Input_3_Leistungsabfall_roadmap.pdf']]
-        create_data_base(file_paths_bucket, assistant.id)
-        
-        path = os.path.join(base_dir, 'uploads', 'docs', 'Maklervertrieb_Zahlen_v0.2_wip.xlsx')
-        
-        thread = create_thread(content_user_input)
-        print("Thread created:", thread.id)
-        
-        run = client.beta.threads.runs.create_and_poll(thread_id=thread.id, assistant_id=assistant.id)
-        print("Run created:", run.id)
-        
-        if run.status in ['completed', 'requires_action']:
-            if run.status == 'requires_action':
-                tool_calls = run.required_action.submit_tool_outputs.tool_calls
-                create_output(run, tool_calls, path, thread)
-                print("Tool outputs created")
-
-            messages = list(client.beta.threads.messages.list(thread_id=thread.id))
-            print("Messages retrieved:", len(messages))
-
-            conversation_history = process_messages(messages, content_user_input)
-            last_message = messages[-1].content if messages else ""
-
-            if isinstance(last_message, list):
-                last_message_text = " ".join(extract_and_format_content(item) for item in last_message)
-            else:
-                last_message_text = extract_and_format_content(last_message)
-            
-            print(f"Processed last message: {last_message_text}")
-            
-            suggestions = generate_follow_up_questions(last_message_text)
-            
-            return jsonify({"messages": conversation_history, "suggestions": suggestions})
-    except Exception as e:
-        print("Error:", e)
-        return jsonify({"error": str(e)}), 500
+        if isinstance(message.content, list):
+            for content_block in message.content:
+                if content_block.type == 'text':
+                    return content_block.text.value
+    except AttributeError:
+        return str(message.content)
+    return str(message.content)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080, debug=True)
