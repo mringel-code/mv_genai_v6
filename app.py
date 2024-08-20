@@ -5,6 +5,7 @@ import openai
 import pandas as pd
 import re
 from dotenv import load_dotenv
+import json
 
 # Load the environment variables from .env file if it exists
 load_dotenv()
@@ -53,18 +54,8 @@ function_calling_tool = [
     {
         "type": "function",
         "function": {
-            "name": "soll_ist_analyze",
-            "description": "Get the performance of the broker in terms of current achievement compared to the target.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "brokerID": {
-                        "type": "string",
-                        "description": "The unique identifier of the broker, e.g., BR12345"
-                    }
-                },
-                "required": ["brokerID"]
-            }
+            "name": "target_analyze",
+            "description": "Get the performance of the portfolio of brokers in terms of quantitative targets achieved."
         }
     },
     {
@@ -87,21 +78,103 @@ function_calling_tool = [
     {
         "type": "function",
         "function": {
-            "name": "create_jira_task",
-            "description": "Create a Jira Task for a one-to-one dialogue with an employee about their performance.",
+            "name": "create_appointment_task",
+            "description": "searches a free Appointment time in the calender for a broker meeting (Maklergespräch).",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "brokerID": {
                         "type": "string",
                         "description": "The unique identifier of the broker, e.g., BR12345"
-                    },
-                    "Datum": {
-                        "type": "string",
-                        "description": "The date for scheduling the dialogue, e.g., YYYY-MM-DD"
                     }
                 },
-                "required": ["brokerID", "Datum"]
+                "required": ["brokerID"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "productive_broker_analyze",
+            "description": "Get an overview of the current productive brokers."
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "advise_for_personal_target",
+            "description": "Provide advice on how to reach personal goals based on the account manager's current performance.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "AccountManagerID": {
+                        "type": "string",
+                        "description": "The unique identifier of the account manager, e.g., AM12345"
+                    },
+                    "personalTargetID": {
+                        "type": "string",
+                        "description": "The unique identifier of the personal target, e.g., PT12345"
+                    }
+                },
+                "required": ["AccountManagerID", "personalTargetID"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "advise_for_team_target",
+            "description": "Provide advice on how to reach team goals based on current performance."
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "advise_for_new_business_target",
+            "description": "Provide advice on how to improve new business targets based on potential analysis.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "AccountManagerID": {
+                        "type": "string",
+                        "description": "The unique identifier of the account manager, e.g., AM12345"
+                    }
+                },
+                "required": ["AccountManagerID"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "advise_for_productive_brokers",
+            "description": "Provide advice on how to make brokers productive based on comparable brokers' data.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "brokerID": {
+                        "type": "string",
+                        "description": "The unique identifier of the broker, e.g., BR12345"
+                    }
+                },
+                "required": ["brokerID"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_appointment",
+            "description": "Creates an appointment for a broker meeting (Maklergespräch).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "freeslot": {
+                        "type": "string",
+                        "description": "A time slot when the broker is available."
+                    }
+                },
+                "required": ["freeslot"]
             }
         }
     }
@@ -111,13 +184,27 @@ file_search_tool = {
     "type": "file_search"
 }
 
+assistant_id = None
+thread = None
+
+def initialize_resources():
+    global assistant_id
+    global thread_id
+
+    if assistant_id is None:
+        assistant = create_assistant(client, function_calling_tool, file_search_tool)
+        assistant_id = assistant.id
+        print(f"Assistant created with ID: {assistant_id}")
+        file_paths_bucket = [os.path.join(base_dir, 'uploads', 'docs', filename) for filename in ['Input_1_sales.pdf', 'Input_4_Makler_Telefonleitfaden.pdf', 'Input_3_Leistungsabfall_roadmap.pdf', 'Zieldefinition MV v1.pdf']]
+        create_data_base(file_paths_bucket, assistant_id)
+
 def create_assistant(client, function_calling_tool, file_search_tool):
     assistant = client.beta.assistants.create(
         name="Broker Assistant",
         instructions=(
-            "You are an expert performance advisor to insurance brokers. "
-            "Use your knowledge base to answer performance questions and give them tips "
-            "on how to improve their potential and reach their targets."
+            "You are an expert performance advisor helping an account manager manage the performance of his insurance broker accounts. "
+            "Use your knowledge base to answer questions and refer to the sources from your knowledge base you used to answer the question in your response. "
+            "Give your answers in german."
         ),
         model="gpt-4o-mini",
         tools=[file_search_tool] + function_calling_tool
@@ -176,32 +263,170 @@ def soll_ist_analyze(broker_number, file_path):
         performance_list.append(performance)
     return performance_list
 
+def target_analyze(file_path):
+    # Einlesen der Excel-Datei
+    print("target_analyze function triggered")
+    df = pd.read_excel(file_path, engine='openpyxl')
+
+    overview = {
+        "produktive_makler": [],
+        "neumehrbeitrag": [],
+        "bestandsbeitrag": [],
+        "teamziele": []
+    }
+
+    for ix, row in df.iterrows():
+        account_manager = row['(Benutzerschlüssel), Account Manager']
+        account_name = row['Account Name']
+        abteilung = row['MSN06, Strukturnummer']
+        team = row['MSN12, Strukturnummer']
+        branche = row['Branche ']
+        sollen = row['Soll']
+        ist_bestand = row['Ist, Bestand gesamt']
+        vorjahr_bestand = row['Vorjahr, Bestand gesamt']
+        ist_neu_mehr = row['Ist, Neu-/Mehrgeschäft']
+        ist_angebote = row['Ist, Gerechnete Angebote']
+        status = row['Ist, Status der Angebote']
+
+        # Übersicht deiner Produktiven Makler
+        overview["produktive_makler"].append({
+            "account_name": account_name,
+            "ist_bestand_ist": ist_bestand,
+            "vorjahr_bestand": vorjahr_bestand,
+            "neu-mehr-geschäft": ist_neu_mehr,
+        })
+
+        # Übersicht Neumehrbeitrag
+        neumehrbeitrag_prozent = (ist_neu_mehr / sollen) * 100 if sollen else 0
+        overview["neumehrbeitrag"].append({
+            "account_name": account_name,
+            "team": team,
+            "neumehrbeitrag": ist_neu_mehr,
+            "prozentualer_wert_an_ziele": f"{neumehrbeitrag_prozent:.2f}%"
+        })
+
+        # Übersicht Bestandsbeitrag
+        bestandsbeitrag_prozent = (ist_bestand / sollen) * 100 if sollen else 0
+        overview["bestandsbeitrag"].append({
+            "account_name": account_name,
+            "team": team,
+            "bestandsbeitrag": ist_bestand,
+            "prozentualer_wert_an_ziele": f"{bestandsbeitrag_prozent:.2f}%"
+        })
+        
+        # Übersicht Teamziele
+        overview["teamziele"].append({
+            "team": team,
+            "neugeschäft": ist_neu_mehr,
+            "bestand": ist_bestand
+        })
+    return overview
+
 def team_analyze():
     return 'Max Mustermann hat eine Performance = 65%, Dieter Hans hat eine Performance = 82%, Ulrich Mark hat eine Performance = 85% '
 
-def create_jira_task():
-    return 'Der Task wurde mit der ID LT45 in Jira hinterlegt.'
+def create_appointment_task():
+    return '05.10. 14:15 ; 07.10 16:35'
+    
+def create_appointment():
+    return 'Termin wurde im Kalender hinterlegt.'
+    
+def productive_broker_analyze(path):
+    data = pd.read_excel(path, engine='openpyxl')
+    
+
+    def clean_currency(value):
+        try:
+            return float(value.replace('€', '').replace(',', '').replace('%', '').strip())
+        except:
+            return 0.0  
+
+    def is_productive(row):
+        bestandswert_vorjahr = clean_currency(row['Vorjahr, Bestand gesamt'])
+        zielwert = clean_currency(row['Soll'])
+        neugeschaeft_ist = clean_currency(row['Ist, Neu-/Mehrgeschäft'])
+
+        condition1 = neugeschaeft_ist >= zielwert
+        
+        condition2 = neugeschaeft_ist >= 0.10 * bestandswert_vorjahr
+        
+        return condition1 and condition2
+
+    data['Produktiv'] = data.apply(is_productive, axis=1)
+
+    return data
+    
+def advise_for_personal_target():
+    return None
+    
+def advise_for_team_target():
+    return None
+    
+def advise_for_new_business_target():
+    return None
+    
+def advise_for_productive_brokers():
+    return None
 
 def create_output(run, tool_calls, path, thread):
     tool_outputs = []
     for tool in tool_calls:
-        if tool.function.name == "soll_ist_analyze":
-            result = soll_ist_analyze('815', path)
-            tool_outputs.append({
-                "tool_call_id": tool.id,
-                "output": f'Aktuelle Performancedaten: {result}'
-            })
-        elif tool.function.name == "team_analyze":
+        if tool.function.name == "team_analyze":
             result = team_analyze()
             tool_outputs.append({
                 "tool_call_id": tool.id,
                 "output": f'Aktuelle Team Performancedaten: {result}'
             })
-        elif tool.function.name == "create_jira_task":
-            result = create_jira_task()
+        elif tool.function.name == "create_appointment":
+            result = team_analyze()
             tool_outputs.append({
                 "tool_call_id": tool.id,
-                "output": f'Jira Task Ergebnis: {result}'
+                "output": f'Kalendernachricht: {result}'
+            })
+        elif tool.function.name == "create_appointment_task":
+            result = create_appointment_task()
+            tool_outputs.append({
+                "tool_call_id": tool.id,
+                "output": f'Es gibt Mögliche freie Termine am : {result}'
+            })
+        elif tool.function.name == "target_analyze":
+            result = target_analyze(path)
+            result = json.dumps(result, indent=4)
+            tool_outputs.append({
+                "tool_call_id": tool.id,
+                "output": f'Im Folgenden findest Du eine aktuelle Übersicht über die quantitative Zielerreichung: {result}'
+            })
+        elif tool.function.name == "productive_broker_analyze":
+            print('productive_broker_analyze')
+            result = productive_broker_analyze(path)
+            result_json = result.to_json(orient='records', indent=4)
+            tool_outputs.append({
+                "tool_call_id": tool.id,
+                "output": f'Übersicht deiner Produktiven Makler: {result_json}'
+            })
+        elif tool.function.name == "advise_for_personal_target":
+            result = advise_for_personal_target()
+            tool_outputs.append({
+                "tool_call_id": tool.id,
+                "output": f'Vorschläge um deine persönlichen Ziele zu erreichen: {result}'
+            })
+        elif tool.function.name == "advise_for_team_target":
+            result = advise_for_team_target()
+            tool_outputs.append({
+                "tool_call_id": tool.id,
+                "output": f'Vorschläge um eure Teamziele zu erreichen: {result}'
+            })
+        elif tool.function.name == "advise_for_new_business_target":
+            result = advise_for_new_business_target()
+            tool_outputs.append({
+                "tool_call_id": tool.id,
+                "output": f'Vorschläge zur Verbesserung der Neumehrziele: {result}'
+            })
+        elif tool.function.name == "advise_for_productive_brokers":
+            result = advise_for_productive_brokers()
+            tool_outputs.append({
+                "tool_call_id": tool.id,
+                "output": f'Potenzial bei vergleichbaren Maklern: {result}'
             })
 
     if tool_outputs:
@@ -254,37 +479,29 @@ def generate_follow_up_questions(response_text):
     response_lower = response_text.lower()
     questions = []
     
-    if 'performance' in response_lower:
-        questions.append("How can I improve my performance?")
-        questions.append("What are the key metrics?")
-    if 'team' in response_lower:
-        questions.append("How is the team performing?")
-        questions.append("What are the individual team member stats?")
+    if 'quantitative zielerreichung' in response_lower:
+        questions.append("Wie erreiche ich meine persönlichen Ziele?")
+        questions.append("Wie erreichen wir unsere Teamziele?")
+        questions.append("Welcher Vertriebsschwerpuntk könnte mir dabei helfen, meine persönlichen Ziele zu erreichen?")
+    if 'persönlichen ziele' in response_lower:
+        questions.append("Wird einer der Top Accounts zukünftig produktiv?")
+        questions.append("Haben andere KollegInnen im MV ähnliche Vertriebsschwerpunkte und Geschäftsverteilungen?")
     if not questions:
-        questions.append("Can you tell me more?")
+        questions.append("Erzähle mir mehr.")
     
     return questions
 
-def process_messages(messages, user_input):
-    conversation_history = []
-    for message in messages:
-        if hasattr(message, 'content'):
-            if isinstance(message.content, list):
-                for content_item in message.content:
-                    if hasattr(content_item, 'text') or hasattr(content_item, 'value'):
-                        formatted_content = extract_and_format_content(content_item)
-                        # Skip messages that just repeat the user input
-                        if formatted_content.lower() != user_input.lower():
-                            conversation_history.append({"role": "assistant", "content": formatted_content})
-                            print(f"Processed content: {formatted_content}")
-                            break  # Only handle the first relevant content
-            else:
-                formatted_content = extract_and_format_content(message.content)
-                # Skip messages that just repeat the user input
-                if formatted_content.lower() != user_input.lower():
-                    conversation_history.append({"role": "assistant", "content": formatted_content})
-                    print(f"Processed content: {formatted_content}")
-    return conversation_history
+def process_message(message, user_input):
+    response = []
+    if hasattr(message, 'content'):
+        if isinstance(message.content, list):
+            for content_item in message.content:
+                if hasattr(content_item, 'text') or hasattr(content_item, 'value'):
+                    formatted_content = extract_and_format_content(content_item)
+                    response.append({"role": "assistant", "content": formatted_content})
+                    print(f"Processed content 1: {formatted_content}")
+                    break  # Only handle the first relevant content
+    return response
 
 @app.route('/', methods=['GET', 'POST'])
 def home():
@@ -299,22 +516,24 @@ def home():
 
 @app.route('/chat', methods=['POST'])
 def chat():
+    global thread
     try:
-        print("Creating assistant...")
-        assistant = create_assistant(client, function_calling_tool, file_search_tool)
-        
         content_user_input = request.json.get('user_input')
         print("Received user input:", content_user_input)
         
-        file_paths_bucket = [os.path.join(base_dir, 'uploads', 'docs', filename) for filename in ['Input_1_sales.pdf', 'Input_2_Mitarbeitergespräche.pdf', 'Input_3_Leistungsabfall_roadmap.pdf']]
-        create_data_base(file_paths_bucket, assistant.id)
+        if thread is None:
+            thread = create_thread(content_user_input)
+            print(f"Thread created with ID: {thread.id}")
+        else: #only add thread
+            thread_message = client.beta.threads.messages.create(
+                thread.id,
+                role="user",
+                content=content_user_input
+            )
         
-        path = os.path.join(base_dir, 'uploads', 'docs', 'Maklervertrieb_Zahlen_v0.2_wip.xlsx')
+        path = os.path.join(base_dir, 'uploads', 'docs', 'maklervertrieb_zahlen_v0.3.xlsx')
         
-        thread = create_thread(content_user_input)
-        print("Thread created:", thread.id)
-        
-        run = client.beta.threads.runs.create_and_poll(thread_id=thread.id, assistant_id=assistant.id)
+        run = client.beta.threads.runs.create_and_poll(thread_id=thread.id, assistant_id=assistant_id)
         print("Run created:", run.id)
         
         if run.status in ['completed', 'requires_action']:
@@ -325,8 +544,9 @@ def chat():
 
             messages = list(client.beta.threads.messages.list(thread_id=thread.id))
             print("Messages retrieved:", len(messages))
+            print("Messages:", messages)
 
-            conversation_history = process_messages(messages, content_user_input)
+            response = process_message(messages[0], content_user_input)
             last_message = messages[-1].content if messages else ""
 
             if isinstance(last_message, list):
@@ -334,14 +554,14 @@ def chat():
             else:
                 last_message_text = extract_and_format_content(last_message)
             
-            print(f"Processed last message: {last_message_text}")
-            
             suggestions = generate_follow_up_questions(last_message_text)
             
-            return jsonify({"messages": conversation_history, "suggestions": suggestions})
+            return jsonify({"messages": response, "suggestions": suggestions})
     except Exception as e:
         print("Error:", e)
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    print("Main executed")
+    initialize_resources()
+    app.run(host='0.0.0.0', port=8080, debug=False)
