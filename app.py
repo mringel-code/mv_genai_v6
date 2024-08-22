@@ -6,12 +6,37 @@ import pandas as pd
 import re
 from dotenv import load_dotenv
 import json
+import boto3
+from botocore.exceptions import ClientError
 
 # Load the environment variables from .env file if it exists
-load_dotenv()
+#load_dotenv()
+
+secret_name = "openai_api_key"
+region_name = "eu-central-1"
+
+# Create a Secrets Manager client
+session = boto3.session.Session()
+client = session.client(
+    service_name='secretsmanager',
+    region_name=region_name
+)
+
+try:
+    get_secret_value_response = client.get_secret_value(
+        SecretId=secret_name
+    )
+except ClientError as e:
+    # For a list of exceptions thrown, see
+    # https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_GetSecretValue.html
+    raise e
+
+secret = get_secret_value_response['SecretString']
+secret_dict = json.loads(secret)
 
 # Initialize OpenAI client
-api_key = os.getenv('OPENAI_API_KEY')
+#api_key = os.getenv('OPENAI_API_KEY')
+api_key = secret_dict.get('OPENAI_API_KEY')
 if not api_key:
     raise Exception("OPENAI_API_KEY is not set in the environment.")
 client = openai.OpenAI(api_key=api_key)
