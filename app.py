@@ -165,7 +165,7 @@ function_calling_tool = [
         "type": "function",
         "function": {
             "name": "create_appointment",
-            "description": "Creates an appointment for a broker meeting (Maklergespräch).",
+            "description": "Create an appointment for a broker meeting (Maklergespräch).",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -184,21 +184,21 @@ file_search_tool = {
     "type": "file_search"
 }
 
-assistant_id = None
+assistant = None
 thread = None
 
 def initialize_resources():
-    global assistant_id
-    global thread_id
+    global assistant
 
-    if assistant_id is None:
+    if assistant is None:
         assistant = create_assistant(client, function_calling_tool, file_search_tool)
-        assistant_id = assistant.id
-        print(f"Assistant created with ID: {assistant_id}")
+        print(f"Assistant created with ID: {assistant.id}")
         file_paths_bucket = [os.path.join(base_dir, 'uploads', 'docs', filename) for filename in ['Input_1_sales.pdf', 'Input_4_Makler_Telefonleitfaden.pdf', 'Input_3_Leistungsabfall_roadmap.pdf', 'Zieldefinition MV v1.pdf']]
-        create_data_base(file_paths_bucket, assistant_id)
+        create_data_base(file_paths_bucket, assistant.id)
 
 def create_assistant(client, function_calling_tool, file_search_tool):
+    global assistant
+    
     assistant = client.beta.assistants.create(
         name="Broker Assistant",
         instructions=(
@@ -206,7 +206,7 @@ def create_assistant(client, function_calling_tool, file_search_tool):
             "Use your knowledge base to answer questions and refer to the sources from your knowledge base you used to answer the question in your response. "
             "Give your answers in german."
         ),
-        model="gpt-4o-mini",
+        model="gpt-4o",
         tools=[file_search_tool] + function_calling_tool
     )
     return assistant
@@ -326,9 +326,23 @@ def team_analyze():
     return 'Max Mustermann hat eine Performance = 65%, Dieter Hans hat eine Performance = 82%, Ulrich Mark hat eine Performance = 85% '
 
 def create_appointment_task():
+    print("create_appointment_task function triggered")
     return '05.10. 14:15 ; 07.10 16:35'
     
 def create_appointment():
+    '''
+    thread_message = client.beta.threads.messages.create(
+                thread.id,
+                role="user",
+                content="How does AI work? Explain it in simple terms.",
+            )
+            
+    messages = list(client.beta.threads.messages.list(thread_id=thread.id))
+    
+    run = client.beta.threads.runs.create_and_poll(thread_id=thread.id, assistant_id=assistant.id)
+    response = process_message(messages[0])
+    return response
+    '''
     return 'Termin wurde im Kalender hinterlegt.'
     
 def productive_broker_analyze(path):
@@ -348,14 +362,25 @@ def productive_broker_analyze(path):
 
         condition1 = neugeschaeft_ist >= zielwert
         
-        condition2 = neugeschaeft_ist >= 0.10 * bestandswert_vorjahr
+        condition2 = neugeschaeft_ist >= 0.20 * bestandswert_vorjahr
+        
+        condition3 = neugeschaeft_ist >= 25.000
         
         return condition1 and condition2
 
     data['Produktiv'] = data.apply(is_productive, axis=1)
 
     return data
-    
+
+def productive_broker_analyze_temp(path):
+
+        data = pd.read_excel(path, engine='openpyxl')
+        
+
+        result_json = data.to_json(orient='records', indent=4)
+        
+        return result_json
+
 def advise_for_personal_target():
     return None
     
@@ -398,11 +423,11 @@ def create_output(run, tool_calls, path, thread):
             })
         elif tool.function.name == "productive_broker_analyze":
             print('productive_broker_analyze')
-            result = productive_broker_analyze(path)
-            result_json = result.to_json(orient='records', indent=4)
+            result_json = productive_broker_analyze_temp(path)
+            #result_json = result.to_json(orient='records', indent=4)
             tool_outputs.append({
                 "tool_call_id": tool.id,
-                "output": f'Übersicht deiner Produktiven Makler: {result_json}'
+                "output": f' produktive Makler (individuell entsprechend des Maklerportfolios festgesetzt); grds. produktiv, wenn Bestand > Vorjahr und Neu-/Mehrgeschäft i.H.v. 20% des Bestandes (min. aber 25.000€). Hier hast du eine Liste mit den aktuellen zahlen, bitte analysiere sie noch nach der definition der produktiven makler. : {result_json}'
             })
         elif tool.function.name == "advise_for_personal_target":
             result = advise_for_personal_target()
@@ -491,7 +516,7 @@ def generate_follow_up_questions(response_text):
     
     return questions
 
-def process_message(message, user_input):
+def process_message(message):
     response = []
     if hasattr(message, 'content'):
         if isinstance(message.content, list):
@@ -517,6 +542,7 @@ def home():
 @app.route('/chat', methods=['POST'])
 def chat():
     global thread
+
     try:
         content_user_input = request.json.get('user_input')
         print("Received user input:", content_user_input)
@@ -524,16 +550,16 @@ def chat():
         if thread is None:
             thread = create_thread(content_user_input)
             print(f"Thread created with ID: {thread.id}")
-        else: #only add thread
+        else: #only create message in thread if there is already a thread
             thread_message = client.beta.threads.messages.create(
                 thread.id,
                 role="user",
-                content=content_user_input
+                content=content_user_input,
             )
         
         path = os.path.join(base_dir, 'uploads', 'docs', 'maklervertrieb_zahlen_v0.3.xlsx')
         
-        run = client.beta.threads.runs.create_and_poll(thread_id=thread.id, assistant_id=assistant_id)
+        run = client.beta.threads.runs.create_and_poll(thread_id=thread.id, assistant_id=assistant.id)
         print("Run created:", run.id)
         
         if run.status in ['completed', 'requires_action']:
@@ -546,7 +572,7 @@ def chat():
             print("Messages retrieved:", len(messages))
             print("Messages:", messages)
 
-            response = process_message(messages[0], content_user_input)
+            response = process_message(messages[0])
             last_message = messages[-1].content if messages else ""
 
             if isinstance(last_message, list):
