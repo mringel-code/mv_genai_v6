@@ -231,7 +231,7 @@ def create_assistant(client, function_calling_tool, file_search_tool):
             "Use your knowledge base to answer questions and refer to the sources from your knowledge base you used to answer the question in your response. "
             "Give your answers in german."
         ),
-        model="gpt-4o",
+        model="gpt-4o-mini",
         tools=[file_search_tool] + function_calling_tool
     )
     return assistant
@@ -453,6 +453,7 @@ def create_output(run, tool_calls, path, thread):
             tool_outputs.append({
                 "tool_call_id": tool.id,
                 "output": f' produktive Makler (individuell entsprechend des Maklerportfolios festgesetzt); grds. produktiv, wenn Bestand > Vorjahr und Neu-/Mehrgeschäft i.H.v. 20% des Bestandes (min. aber 25.000€). Hier hast du eine Liste mit den aktuellen zahlen, bitte analysiere sie noch nach der definition der produktiven makler. : {result_json}'
+                #"output": f'Ermittle die Kriterien für Produktiver Makler aus den Beschreibungen in Dokument Zieldefinition MV v1.pdf in deiner Knowledge Base. Gib eine kurze Definition von Produktiver Makler. Wende die Definition von produktiver Makler auf folgende Daten von Maklern an und gib eine Liste der produktiven Makler zurück. : {result_json}'
             })
         elif tool.function.name == "advise_for_personal_target":
             result = advise_for_personal_target()
