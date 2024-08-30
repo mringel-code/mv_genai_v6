@@ -3,6 +3,5 @@ Werkzeug
 openai
 pandas
 openpyxl
-python-dotenv
 boto3
 botocore

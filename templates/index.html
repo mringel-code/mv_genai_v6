@@ -19,10 +19,17 @@
         }
         .header {
             background-color: #007bff;
-            padding: 10px;  /* Reduced height by one third */
+            padding: 5px;
             text-align: center;
-            border-bottom: 2px solid #0056b3;
             color: white;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 1.5em; /* Kleinere Schriftgröße */
+        }
+        .header p {
+            margin: 0;
+            font-size: 0.8em; /* Kleinere Schriftgröße */
         }
         .main {
             display: flex;
@@ -39,7 +46,7 @@
         .chat-window {
             flex: 1;
             background-color: #fff;
-            padding: 10px;
+            padding: 5px;
             display: flex;
             flex-direction: column;
             box-sizing: border-box;
@@ -49,10 +56,9 @@
             flex: 1;
             overflow-y: auto;
             border: 1px solid #ccc;
-            padding: 10px;
-            margin-bottom: 10px;
+            padding: 5px;
             background-color: #fafafa;
-            max-height: calc(100vh - 450px); /* Adjust based on your needs */
+            border-radius: 4px;
         }
         .chat-message {
             margin-bottom: 10px;
@@ -71,6 +77,7 @@
         }
         .chat-input {
             display: flex;
+            padding: 5px;
         }
         .chat-input input {
             flex: 1;
@@ -79,7 +86,7 @@
             border-radius: 4px;
         }
         .chat-input button {
-            padding: 10px;
+            padding: 5px;
             margin-left: 5px;
             border: 1px solid #ccc;
             background-color: #007bff;
@@ -91,8 +98,7 @@
             background-color: #cccccc;
         }
         .suggestions {
-            margin-top: 10px;
-            margin-bottom: 10px;
+            padding: 5px;
         }
         .suggestions ul {
             list-style: none;
@@ -103,12 +109,17 @@
             cursor: pointer;
             color: #007bff;
             padding: 5px 0;
-            background-color: #f1f1f1; /* Same as assistant background to match */
+            background-color: #f1f1f1;
             margin-bottom: 5px;
             border-radius: 10px;
         }
         .suggestion-item:hover {
             text-decoration: underline;
+        }
+        #loader {
+            display: none;
+            font-size: 1.5em;
+            color: blue;
         }
     </style>
 </head>
@@ -134,6 +145,7 @@
             </div>
             <div class="chat-window">
                 <h2>Chat Window</h2>
+                <div id="loader">Loading...</div>
                 <div class="chat-messages" id="chatMessages"></div>
                 <div class="suggestions" id="suggestionsContainer">
                     <p>Suggested Questions:</p>
@@ -150,66 +162,113 @@
             </div>
         </div>
     </div>
+    <!-- Polyfill für fetch hinzufügen -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/whatwg-fetch/3.0.0/fetch.umd.js"></script>
     <script>
+        function fetchWithTimeout(resource, options) {
+            const { timeout = 8000 } = options;
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            const response = fetch(resource, {
+                ...options,
+                signal: controller.signal
+            });
+            clearTimeout(id);
+            return response;
+        }
+
         function appendMessage(message, sender) {
             const messageClass = sender === 'user' ? 'user' : 'assistant';
             const messageContainer = document.getElementById('chatMessages');
-        
             const formattedMessage = formatMessageContent(message, sender);
-        
             const messageElement = document.createElement('div');
             messageElement.classList.add('chat-message', messageClass);
             messageElement.innerHTML = `<strong>${sender === 'user' ? 'You' : 'Assistant'}:</strong> ${formattedMessage}`;
-        
             messageContainer.appendChild(messageElement);
             messageContainer.scrollTop = messageContainer.scrollHeight;
         }
-        
+
         function formatMessageContent(content) {
-            // Directly pass the HTML content without escaping
             return content;
         }
-        
+
         function sendMessage(userInput = null) {
             const userInputElement = document.getElementById('userInput');
             const sendButton = document.getElementById('sendButton');
+            const loader = document.getElementById('loader');
             const userMessage = userInput || userInputElement.value;
 
             if (userMessage) {
                 appendMessage(userMessage, 'user');
                 userInputElement.value = '';
                 sendButton.disabled = true;
+                loader.style.display = 'block';
 
-                fetch('/chat', {
+                fetchWithTimeout('/chat', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ user_input: userMessage })
+                    body: JSON.stringify({ user_input: userMessage }),
+                    timeout: 300000  // Setze ein Timeout von 30 Sekunden
                 })
                 .then(response => response.json())
                 .then(data => {
-                    data.messages.forEach(message => appendMessage(message.content, 'assistant'));
-                    suggestFollowUpQuestions(data.suggestions);
-                    sendButton.disabled = false;
+                    if (data.error) {
+                        appendMessage(data.error, 'assistant');
+                        loader.style.display = 'none';
+                        sendButton.disabled = false;
+                    } else {
+                        if (data.status === 'running') {
+                            checkStatus(); // Starte die Statusüberprüfung
+                        } else {
+                            data.messages.forEach(message => appendMessage(message.content, 'assistant'));
+                            suggestFollowUpQuestions(data.suggestions);
+                            sendButton.disabled = false;
+                            loader.style.display = 'none';
+                        }
+                    }
                 })
-                .catch(() => {
+                .catch(error => {
+                    loader.style.display = 'none';
                     sendButton.disabled = false;
+                    appendMessage('An error occurred: ' + error.message, 'assistant');
                 });
             }
         }
 
-        document.getElementById('userInput').addEventListener('keydown', function(event) {
-            if (event.key === 'Enter') {
-                sendMessage();
-                event.preventDefault(); // Prevent the default action to avoid newline in the input
-            }
-        });
+        function checkStatus() {
+            fetchWithTimeout('/check_status', {
+                method: 'GET',
+                timeout: 15000  // Setze ein Timeout von 5 Sekunden für den Statuscheck
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log("Status response from server:", data);  // Debug-Ausgabe
+                if (data.status === 'completed') {
+                    document.getElementById('loader').style.display = 'none';
+                    data.messages.forEach(message => appendMessage(message.content, 'assistant'));
+                    suggestFollowUpQuestions(data.suggestions);
+                    document.getElementById('sendButton').disabled = false;
+                } else if (data.status === 'running') {
+                    setTimeout(checkStatus, 15000); // Überprüfe erneut nach einer Verzögerung
+                } else if (data.error) {
+                    appendMessage(data.error, 'assistant');
+                    document.getElementById('loader').style.display = 'none';
+                    document.getElementById('sendButton').disabled = false;
+                }
+            })
+            .catch(error => {
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('sendButton').disabled = false;
+                appendMessage('An error occurred: ' + error.message, 'assistant');
+            });
+        }
 
         function suggestFollowUpQuestions(questions) {
             const suggestionsContainer = document.getElementById('suggestionsContainer');
             const suggestionsList = document.getElementById('suggestionsList');
-            suggestionsList.innerHTML = ''; // Clear existing suggestions
+            suggestionsList.innerHTML = '';
 
             if (questions.length > 0) {
                 questions.forEach(question => {
@@ -219,17 +278,24 @@
                     li.onclick = () => sendMessage(question);
                     suggestionsList.appendChild(li);
                 });
-                suggestionsContainer.style.display = 'block'; // Show suggestions
+                suggestionsContainer.style.display = 'block';
             } else {
-                suggestionsContainer.style.display = 'none'; // Hide suggestions
+                suggestionsContainer.style.display = 'none';
             }
         }
 
-        // Initial suggested question
         document.addEventListener('DOMContentLoaded', function() {
+            const userInputElement = document.getElementById('userInput');
+            userInputElement.addEventListener('keydown', function(event) {
+                if (event.key === 'Enter') {
+                    sendMessage();
+                    event.preventDefault();
+                }
+            });
+
             const initialSuggestedQuestions = ["Wo stehe ich in Hinblick auf meine quantitative Zielerreichung?"];
             suggestFollowUpQuestions(initialSuggestedQuestions);
         });
-    </script>
+</script>
 </body>
 </html>

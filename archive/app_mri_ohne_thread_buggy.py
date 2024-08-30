@@ -7,9 +7,6 @@ import re
 import json
 import boto3
 from botocore.exceptions import ClientError
-import threading
-from threading import Event
-import logging
 
 secret_name = "openai_api_key"
 region_name = "eu-central-1"
@@ -49,13 +46,6 @@ base_dir = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(base_dir, 'uploads', 'docs')
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'doc', 'docx', 'xlsx'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
-task_completed = Event()
-analysis_result = {}
-
-# Konfiguration für Logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Ensure the upload directory exists
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
@@ -133,6 +123,68 @@ function_calling_tool = [
     {
         "type": "function",
         "function": {
+            "name": "advise_for_personal_target",
+            "description": "Provide advice on how to reach personal goals based on the account manager's current performance.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "AccountManagerID": {
+                        "type": "string",
+                        "description": "The unique identifier of the account manager, e.g., AM12345"
+                    },
+                    "personalTargetID": {
+                        "type": "string",
+                        "description": "The unique identifier of the personal target, e.g., PT12345"
+                    }
+                },
+                "required": ["AccountManagerID", "personalTargetID"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "advise_for_team_target",
+            "description": "Provide advice on how to reach team goals based on current performance."
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "advise_for_new_business_target",
+            "description": "Provide advice on how to improve new business targets based on potential analysis.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "AccountManagerID": {
+                        "type": "string",
+                        "description": "The unique identifier of the account manager, e.g., AM12345"
+                    }
+                },
+                "required": ["AccountManagerID"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "advise_for_productive_brokers",
+            "description": "Provide advice on how to make brokers productive based on comparable brokers' data.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "brokerID": {
+                        "type": "string",
+                        "description": "The unique identifier of the broker, e.g., BR12345"
+                    }
+                },
+                "required": ["brokerID"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "create_appointment",
             "description": "Create an appointment for a broker meeting (Maklergespräch).",
             "parameters": {
@@ -161,7 +213,7 @@ def initialize_resources():
 
     if assistant is None:
         assistant = create_assistant(client, function_calling_tool, file_search_tool)
-        logger.info(f"Assistant created with ID: {assistant.id}")
+        print(f"Assistant created with ID: {assistant.id}")
         file_paths_bucket = [os.path.join(base_dir, 'uploads', 'docs', filename) for filename in ['Input_1_sales.pdf', 'Input_4_Makler_Telefonleitfaden.pdf', 'Input_3_Leistungsabfall_roadmap.pdf', 'Zieldefinition MV v1.pdf']]
         create_data_base(file_paths_bucket, assistant.id)
 
@@ -193,8 +245,8 @@ def create_data_base(file_paths_bucket, assistant_id):
         assistant_id=assistant_id,
         tool_resources={"file_search": {"vector_store_ids": [vector_store.id]}},
     )
-    logger.info(f'File batch status: {file_batch.status}')
-    logger.info(f'File batch file count: {file_batch.file_counts}')
+    print(file_batch.status)
+    print(file_batch.file_counts)
 
 def soll_ist_analyze(broker_number, file_path):
     df = pd.read_excel(file_path, engine='openpyxl')
@@ -234,44 +286,21 @@ def soll_ist_analyze(broker_number, file_path):
 
 def target_analyze(file_path):
     # Einlesen der Excel-Datei
-    logger.info('target_analyze function triggered')
+    print("target_analyze function triggered")
     data = pd.read_excel(file_path, engine='openpyxl')
     result_json = data.to_json(orient='records', indent=4)
     
-    output_template = {
-            "Im Folgenden findest Du eine aktuelle Auflistung:"
-            "Abteilungsziele:"
-            "- Die Schadequote liegt mit 32,05% derzeit im Zielbereich (Zielgröße 50,00 %)."
-            "Teamziele:"
-            "- Im Team wurde der Zielwert des Bestands i.H.v. 142.000 € noch nicht erreicht. Aktuell liegt der Bestand bei 69.015€."
-            "- Der Zielwert des Neu-/Mehrgeschäftes i.H.v. 164.798 € wurde bislang noch nicht erreicht und beträgt derzeit 75.256 €."
-            "Persönliche Ziele:"
-            "Bestandsziele:"
-            "- 2 von 5 Maklern konnten den Bestand (Privat + SMC) im Vergleich zum Vorjahr steigern." 
-            "- 3 von 8 Maklern konnten den Bestand (Firmen MC) im Vergleich zum Vorjahr steigern."
-            "Ingesamt hat Dein Maklerportfolio ein Bestandsvolument von X TEUR, im VJ wurden X TEUR erreicht."
-            "Neu-/Mehrgeschäftsziele:"
-            "- 4 von 8 Makern konnten das Neu/Mehrgeschäft(Privat + SMC) im Vergleich zum Vorjahr steigern. "
-            "- 4 von 8 Makern konnten das Neu/Mehrgeschäft(Firmen MC) im Vergleich zum Vorjahr steigern. "
-            "Ingesamt hat Dein Maklerportfolio ein Neu-/Mehrgeschäft von X TEUR, im VJ wurden X TEUR erreicht."
-            "Produktive Makler:"
-            "- 4 von 7 Maklern sind bereits produktiv."
-            "Wenn Du möchtest gebe ich Dir gerne eine Detailssicht zu Deinem Maklerportfolio und empfehle Maßnahmen, um Deine persönlichen Ziele effizient zu erreichen. "
-        }
-    
-    temp_thread = create_thread("Ermittle die grundsätzliche Definition für folgende Zielarten entsprechend deiner Knowledge Base: 1. Abteilungsziele, 2. Teamziele, 3. Persönliche Ziele inkl. Bestandsziele, Neu- Mehrgeschäftsziele und Produktive Makler")
-    logger.info(f'Temp thread created with ID: {temp_thread.id}')
+    temp_thread = create_thread("Ermittle die grundsätzliche Definition für folgende Zielarten entsprechend deiner Knowledge Base: 1. Abteilungsziele, 2. Teamziele, 3. Persönliche Ziele")
+    print(f'Temp thread created with ID: {temp_thread.id}')
     temp_run1 = client.beta.threads.runs.create_and_poll(thread_id=temp_thread.id, assistant_id=assistant.id)
     
     if temp_run1.status == 'completed':
-        logger.info('target_analyze run step 1 completed successfully')
+        print("target_analyze run step 1 completed successfully")
         temp_thread_message = client.beta.threads.messages.create(
                     temp_thread.id,
                     role="user",
                     content=(
-                        f'Wende diese Definitionen auf die folgenden Maklervertrieb Zahlen an und erstelle eine übergreifende Auflistung der Zielarten mit ihrem aktuellen Erreichungsgrad (einschließlich kurzer Zusammenfassung der Zielart-Definition):'
-                        f'Hier sind die Maklervertrieb Zahlen: {result_json}'
-                        f'Strukturiere deine Antwort entsprechend folgendem Beispiel: {output_template}'
+                        f'Wende diese Definitionen auf die folgenden Maklervertrieb Zahlen an und erstelle eine übergreifende Auflistung der Zielarten mit ihrem aktuellen Erreichungsgrad (einschließlich kurzer Zusammenfassung der Zielart-Definition): {result_json}'
                     ),
                 )
         
@@ -279,34 +308,33 @@ def target_analyze(file_path):
         if temp_run2.status == 'completed':
             temp_messages = list(client.beta.threads.messages.list(thread_id=temp_thread.id))
             response = temp_messages[0]
-            logger.info('target_analyze run step 2 completed successfully')
+            print("target_analyze run step 2 completed successfully")
             return response
-        logger.info(f'Problem: target_analyze run step 2 not completed: {temp_run2.status}')
+        print(f'Problem: target_analyze run step 2 not completed: {temp_run2.status}')
         
-    logger.info(f'Problem: target_analyze run step 1 not completed: {temp_run1.status}')
+    print(f'Problem: target_analyze run step 1 not completed: {temp_run1.status}')
     return jsonify({"error": "An error occurred during the analysis"}), 500
 
 def team_analyze():
     return 'Max Mustermann hat eine Performance = 65%, Dieter Hans hat eine Performance = 82%, Ulrich Mark hat eine Performance = 85% '
 
 def create_appointment_task():
-    logger.info('create_appointment_task function triggered')
+    print("create_appointment_task function triggered")
     return '05.10. 14:15 ; 07.10 16:35'
     
 def create_appointment():
     return 'Termin wurde im Kalender hinterlegt.'
     
 def productive_broker_analyze(path):
-    logger.info('productive_broker_analyze')
     data = pd.read_excel(path, engine='openpyxl')
     result_json = data.to_json(orient='records', indent=4)
     
     temp_thread = create_thread("Ermittle die Definition für produktive Makler entsprechend deiner Knowledge Base.")
-    logger.info(f'Temp thread created with ID: {temp_thread.id}')
+    print(f'Temp thread created with ID: {temp_thread.id}')
     temp_run1 = client.beta.threads.runs.create_and_poll(thread_id=temp_thread.id, assistant_id=assistant.id)
     
     if temp_run1.status == 'completed':
-        logger.info('productive_broker_analyze run step 1 completed successfully')
+        print("productive_broker_analyze run step 1 completed successfully")
         temp_thread_message = client.beta.threads.messages.create(
                     temp_thread.id,
                     role="user",
@@ -317,14 +345,26 @@ def productive_broker_analyze(path):
         
         temp_run2 = client.beta.threads.runs.create_and_poll(thread_id=temp_thread.id, assistant_id=assistant.id)
         if temp_run2.status == 'completed':
-            logger.info('productive_broker_analyze run step 2 completed successfully')
+            print("productive_broker_analyze run step 2 completed successfully")
             temp_messages = list(client.beta.threads.messages.list(thread_id=temp_thread.id))
             response = temp_messages[0]
             return response
-        logger.info(f'Problem: productive_broker_analyze run step 2 not completed: {temp_run1.status}')
+        print(f'Problem: productive_broker_analyze run step 2 not completed: {temp_run1.status}')
         
-    logger.info(f'Problem: productive_broker_analyze run step 1 not completed: {temp_run1.status}')
+    print(f'Problem: productive_broker_analyze run step 1 not completed: {temp_run1.status}')
     return jsonify({"error": "An error occurred during the analysis"}), 500
+
+def advise_for_personal_target():
+    return None
+    
+def advise_for_team_target():
+    return None
+    
+def advise_for_new_business_target():
+    return None
+    
+def advise_for_productive_brokers():
+    return None
 
 def create_output(run, tool_calls, path, thread):
     tool_outputs = []
@@ -354,10 +394,35 @@ def create_output(run, tool_calls, path, thread):
                 "output": f'Im Folgenden findest Du eine aktuelle Übersicht über die quantitative Zielerreichung: {result}'
             })
         elif tool.function.name == "productive_broker_analyze":
+            print('productive_broker_analyze')
             result = productive_broker_analyze(path)
             tool_outputs.append({
                 "tool_call_id": tool.id,
                 "output": f'{result}'
+            })
+        elif tool.function.name == "advise_for_personal_target":
+            result = advise_for_personal_target()
+            tool_outputs.append({
+                "tool_call_id": tool.id,
+                "output": f'Vorschläge um deine persönlichen Ziele zu erreichen: {result}'
+            })
+        elif tool.function.name == "advise_for_team_target":
+            result = advise_for_team_target()
+            tool_outputs.append({
+                "tool_call_id": tool.id,
+                "output": f'Vorschläge um eure Teamziele zu erreichen: {result}'
+            })
+        elif tool.function.name == "advise_for_new_business_target":
+            result = advise_for_new_business_target()
+            tool_outputs.append({
+                "tool_call_id": tool.id,
+                "output": f'Vorschläge zur Verbesserung der Neumehrziele: {result}'
+            })
+        elif tool.function.name == "advise_for_productive_brokers":
+            result = advise_for_productive_brokers()
+            tool_outputs.append({
+                "tool_call_id": tool.id,
+                "output": f'Potenzial bei vergleichbaren Maklern: {result}'
             })
 
     if tool_outputs:
@@ -367,11 +432,11 @@ def create_output(run, tool_calls, path, thread):
                 run_id=run.id,
                 tool_outputs=tool_outputs
             )
-            logger.info('Tool outputs submitted successfully.')
+            print("Tool outputs submitted successfully.")
         except Exception as e:
-            logger.info(f'Failed to submit tool outputs: {e}')
+            print("Failed to submit tool outputs:", e)
     else:
-        logger.info('No tool outputs to submit.')
+        print("No tool outputs to submit.")
 
 def create_thread(content_user_input):
     thread = client.beta.threads.create()
@@ -400,7 +465,7 @@ def extract_and_format_content(message_content):
         formatted_content = format_message_content(content)
         return formatted_content
     except Exception as e:
-        logger.info(f'Error extracting and formatting content: {e}')
+        print(f"Error extracting and formatting content: {e}")
         return ""
 
 def generate_follow_up_questions(response_text):
@@ -430,7 +495,7 @@ def process_message(message):
                 if hasattr(content_item, 'text') or hasattr(content_item, 'value'):
                     formatted_content = extract_and_format_content(content_item)
                     response.append({"role": "assistant", "content": formatted_content})
-                    logger.info(f'Processed content 1: {formatted_content}')
+                    print(f"Processed content 1: {formatted_content}")
                     break  # Only handle the first relevant content
     return response
 
@@ -444,96 +509,56 @@ def home():
             return redirect(url_for('home'))
     uploaded_files = os.listdir(app.config['UPLOAD_FOLDER'])
     return render_template('index.html', uploaded_files=uploaded_files)
-    
-@app.route('/check_status', methods=['GET'])
-def check_status():
-    logger.info('check_status called')
-    if task_completed.is_set():
-        logger.info('Task completed')
-        if 'error' in analysis_result:
-            return jsonify({"status": "error", "error": analysis_result['error']}), 500
-        return jsonify({"status": "completed", "response": analysis_result.get('response'), "messages": analysis_result.get('messages', []), "suggestions": analysis_result.get('suggestions', [])})
-    logger.info('Task still running')
-    return jsonify({"status": "running"})
 
 @app.route('/chat', methods=['POST'])
 def chat():
     global thread
-    global analysis_result
 
-    content_user_input = request.json.get('user_input')
-    logger.info(f"Received user input: {content_user_input}")
-    
-    if thread is None:
-        thread = create_thread(content_user_input)
-        logger.info(f'User thread created with ID: {thread.id}')
-    else: #only create message in thread if there is already a thread
-        thread_message = client.beta.threads.messages.create(
-            thread.id,
-            role="user",
-            content=content_user_input,
-        )
-    
-    path = os.path.join(base_dir, 'uploads', 'docs', 'maklervertrieb_zahlen_v0.3.xlsx')
-    
-    task_completed.clear()  # Reset task event
-    analysis_result = {"status": "running"}
+    try:
+        content_user_input = request.json.get('user_input')
+        print("Received user input:", content_user_input)
+        
+        if thread is None:
+            thread = create_thread(content_user_input)
+            print(f"User thread created with ID: {thread.id}")
+        else: #only create message in thread if there is already a thread
+            thread_message = client.beta.threads.messages.create(
+                thread.id,
+                role="user",
+                content=content_user_input,
+            )
+        
+        path = os.path.join(base_dir, 'uploads', 'docs', 'maklervertrieb_zahlen_v0.3.xlsx')
+        
+        run = client.beta.threads.runs.create_and_poll(thread_id=thread.id, assistant_id=assistant.id)
+        print("Run created:", run.id)
+        
+        if run.status in ['completed', 'requires_action']:
+            if run.status == 'requires_action':
+                tool_calls = run.required_action.submit_tool_outputs.tool_calls
+                create_output(run, tool_calls, path, thread)
+                print("Tool outputs created")
 
-    def analyze_task():
-        global analysis_result
-        try:
-            logger.info("Starting long running task")
-            run = client.beta.threads.runs.create_and_poll(thread_id=thread.id, assistant_id=assistant.id)
-            logger.info(f'Run created: {run.id}')
+            messages = list(client.beta.threads.messages.list(thread_id=thread.id))
+            print("Messages retrieved:", len(messages))
+            print("Messages:", messages)
+
+            response = process_message(messages[0])
+            last_message = messages[-1].content if messages else ""
+
+            if isinstance(last_message, list):
+                last_message_text = " ".join(extract_and_format_content(item) for item in last_message)
+            else:
+                last_message_text = extract_and_format_content(last_message)
             
-            if run.status in ['completed', 'requires_action']:
-                if run.status == 'requires_action':
-                    tool_calls = run.required_action.submit_tool_outputs.tool_calls
-                    create_output(run, tool_calls, path, thread)
-                    logger.info("Tool outputs created")
-    
-                messages = list(client.beta.threads.messages.list(thread_id=thread.id))
-                logger.info(f'Messages retrieved: {len(messages)}')
-                logger.info(f'Messages: {messages}')
-                
-                response = process_message(messages[0])
-                last_message = messages[-1].content if messages else ""
-    
-                if isinstance(last_message, list):
-                    last_message_text = " ".join(extract_and_format_content(item) for item in last_message)
-                else:
-                    last_message_text = extract_and_format_content(last_message)
-                
-                suggestions = generate_follow_up_questions(last_message_text)
-                analysis_result['messages'] = response
-                analysis_result['suggestions'] = suggestions
-                logger.info("Task completed successfully")
+            suggestions = generate_follow_up_questions(last_message_text)
             
-            task_completed.set()
-        except Exception as e:
-            analysis_result['error'] = str(e)
-            logger.error("An error occurred during the analysis task", exc_info=True)
-            
-        finally:
-            task_completed.set()  # Setze das Event, unabhängig vom Ergebnis der Aufgabe
-    
-    logger.info("Starting background task")
-    threading.Thread(target=analyze_task).start()
-    #return jsonify({"status": "running"})
-    '''
-    task_success = task_completed.wait(timeout=300)
-
-    if not task_success:
-        return "Task is still running. Please check back later.", 202
-
-    if 'error' in analysis_result:
-        return f"An error occurred: {analysis_result['error']}", 500
-    '''
-    return jsonify(analysis_result)
-    
+            return jsonify({"messages": response, "suggestions": suggestions})
+    except Exception as e:
+        print("Error:", e)
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    logger.info('Main executed')
+    print("Main executed")
     initialize_resources()
-    #app.run(host='0.0.0.0', port=8080, debug=False)
-    app.run(host='0.0.0.0', port=8080, threaded=True, use_reloader=False)
+    app.run(host='0.0.0.0', port=8080, debug=False)
