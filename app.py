@@ -185,6 +185,7 @@ def create_assistant(client, function_calling_tool, file_search_tool):
             "Give your answers in german."
         ),
         model="gpt-4o-mini",
+        temperature=0.3,
         tools=[file_search_tool] + function_calling_tool
     )
     return assistant
@@ -281,18 +282,40 @@ def target_analyze(file_path):
             "\n\nWenn Du möchtest gebe ich Dir gerne eine Detailssicht zu Deinem Maklerportfolio und empfehle Maßnahmen, um Deine persönlichen Ziele effizient zu erreichen. "
         }
         
+    output_template_final = {
+            "Abteilungsziele:"
+            "\n- Die Schadequote liegt mit 32,05% derzeit im Zielbereich (Zielgröße 50,00 %)."
+            "\n\nTeamziele:"
+            "\n- Im Team wurde der Zielwert des Bestands i.H.v. 142.000 € noch nicht erreicht. Aktuell liegt der Bestand bei 69.015€.\n"
+            "\n- Der Zielwert des Neu-/Mehrgeschäftes i.H.v. 164.798 € wurde bislang noch nicht erreicht und beträgt derzeit 75.256 €."
+            "\nPersönliches Ziel:"
+            "\nBestandsziele:"
+            "\n- 2 von 5 Maklern konnten den Bestand (Privat + SMC) im Vergleich zum Vorjahr steigern.\n" 
+            "\n- 3 von 8 Maklern konnten den Bestand (Firmen MC) im Vergleich zum Vorjahr steigern.\n"
+            "\nIngesamt hat Dein Maklerportfolio ein Bestandsvolument von X TEUR, im VJ wurden X TEUR erreicht.\n\n"
+            "\nPersönliches Ziel:"
+            "\nNeu-/Mehrgeschäftsziele:"
+            "\n- 4 von 8 Makern konnten das Neu/Mehrgeschäft(Privat + SMC) im Vergleich zum Vorjahr steigern. "
+            "\n- 4 von 8 Makern konnten das Neu/Mehrgeschäft(Firmen MC) im Vergleich zum Vorjahr steigern. "
+            "\nIngesamt hat Dein Maklerportfolio ein Neu-/Mehrgeschäft von X TEUR, im VJ wurden X TEUR erreicht."
+            "\nPersönliches Ziel:"
+            "\nProduktive Makler:"
+            "\n- 4 von 7 Maklern sind bereits produktiv."
+            "\n\nWenn Du möchtest gebe ich Dir gerne eine Detailssicht zu Deinem Maklerportfolio und empfehle Maßnahmen, um Deine persönlichen Ziele effizient zu erreichen. "
+        }
+        
     prompt_steps = [
             "Ermittle die grundsätzliche Definition für die Zielart 1 Abteilungsziele!",
-            f'Wende diese Definitionen auf die folgenden Maklervertrieb Zahlen und erstelle eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad! \nHier sind die Maklervertrieb Zahlen: \n{result_json} Erzeuge deine Antwort entsprechend folgendem Beispiel: \n{output_template_abteilung}',
+            f'Wende diese Definitionen auf die folgenden Maklervertrieb Zahlen an und erstelle eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad! \nHier sind die Maklervertrieb Zahlen: \n{result_json} \nErzeuge deine Antwort strikt entsprechend folgender Vorgabe: \n{output_template_abteilung}',
             "Ermittle die grundsätzliche Definition für die Zielart 2 Teamziele!",
-            f'Wende diese Definitionen auf die folgenden Maklervertrieb Zahlen und erstelle eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad! \nHier sind die Maklervertrieb Zahlen: \n{result_json} Erzeuge deine Antwort entsprechend folgendem Beispiel: \n{output_template_team}',
-            "Ermittle die grundsätzliche Definition für die Zielart 3 Persönliche Ziele für die Messgröße Bestandsziele!",
-            f'Wende diese Definitionen auf die folgenden Maklervertrieb Zahlen und erstelle eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad! \nHier sind die Maklervertrieb Zahlen: \n{result_json} Erzeuge deine Antwort entsprechend folgendem Beispiel: \n{output_template_personal1}',
-            "Ermittle die grundsätzliche Definition für die Zielart 3 Persönliche Ziele für die Messgröße Neu- Mehrgeschäft!",
-            f'Wende diese Definitionen auf die folgenden Maklervertrieb Zahlen und erstelle eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad: \nHier sind die Maklervertrieb Zahlen: \n{result_json} Erzeuge deine Antwort entsprechend folgendem Beispiel: \n{output_template_personal2}',
-            "Ermittle die grundsätzliche Definition für die Zielart 3 Persönliche Ziele für die Messgröße Produktive Makler!",
-            f'Wende diese Definitionen auf die folgenden Maklervertrieb Zahlen und erstelle eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad: \nHier sind die Maklervertrieb Zahlen: \n{result_json} Erzeuge deine Antwort entsprechend folgendem Beispiel: \n{output_template_personal3}',
-            f'Erstelle eine detaillierte Zusammenstellung aller zuvor ermittelten Kennzahlen und Erreichungsgrade!'
+            f'Wende diese Definitionen auf die folgenden Maklervertrieb Zahlen an und erstelle eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad! \nHier sind die Maklervertrieb Zahlen: \n{result_json} \nErzeuge deine Antwort strikt entsprechend folgender Vorgabe: \n{output_template_team}',
+            "Ermittle die grundsätzliche Definition für die Messgröße Bestandsziele innerhalb derZielart 3 Persönliche Ziele!",
+            f'Wende diese Definitionen auf die folgenden Maklervertrieb Zahlen an und erstelle eine Auflistung der Makler, die diese Zielvorgaben erreichen! \nHier sind die Maklervertrieb Zahlen: \n{result_json} \nErzeuge deine Antwort strikt entsprechend folgender Vorgabe: \n{output_template_personal1}',
+            "Ermittle die grundsätzliche Definition für die Messgröße Neu- Mehrgeschäft innerhalb der Zielart 3 Persönliche Ziele!",
+            f'Wende diese Definitionen auf die folgenden Maklervertrieb Zahlen an und erstelle eine Auflistung der Makler, die diese Zielvorgaben erreichen! \nHier sind die Maklervertrieb Zahlen: \n{result_json} \nErzeuge deine Antwort strikt entsprechend folgender Vorgabe: \n{output_template_personal2}',
+            "Ermittle die grundsätzliche Definition für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele!",
+            f'Wende diese Definition auf die folgenden Maklervertrieb Zahlen an und erstelle eine Auflistung der Makler, die diese Zielvorgaben erreichen! \nHier sind die Maklervertrieb Zahlen: \n{result_json} \nErzeuge deine Antwort strikt entsprechend folgender Vorgabe: \n{output_template_personal3}',
+            f'Erstelle eine detaillierte Zusammenstellung aller zuvor ermittelten Kennzahlen und Erreichungsgrade! \nErzeuge deine Antwort strikt entsprechend folgender Vorgabe: \n{output_template_final}'
         ]
     
     temp_thread = create_thread(prompt_steps[0])
