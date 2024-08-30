@@ -471,13 +471,15 @@ def productive_broker_analyze(path):
         
         if temp_run.status != 'completed':
             logger.info(f'Problem: target_analyze run step {i+1} not completed: {temp_run.status}')
-            return jsonify({"error": "An error occurred during the analysis"}), 500
+            with app.app_context():
+                return jsonify({"error": "An error occurred during the analysis"}), 500
     
     temp_messages = list(client.beta.threads.messages.list(thread_id=temp_thread.id))
     response = temp_messages[0]
     logger.info('target_analyze completed successfully')
     
-    return response
+    with app.app_context():
+        return response
     
 
 def create_output(run, tool_calls, path, thread):
