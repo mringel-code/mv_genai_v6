@@ -190,7 +190,7 @@ def create_assistant(client, function_calling_tool, file_search_tool):
         tools=[file_search_tool] + function_calling_tool
     )
     return assistant
-
+    
 def initialize_assistant_for_session():
     assistant = create_assistant(client, function_calling_tool, file_search_tool)
     session['assistant_id'] = assistant.id
@@ -654,7 +654,7 @@ def check_status():
         return jsonify({"status": "completed", "response": analysis_result.get('response'), "messages": analysis_result.get('messages', []), "suggestions": analysis_result.get('suggestions', [])})
     logger.info('Task still running')
     return jsonify({"status": "running"})
-    
+
 @app.route('/reset_session', methods=['GET'])
 def reset_session():
     session.clear()
@@ -667,7 +667,6 @@ def chat():
 
     content_user_input = request.json.get('user_input')
     logger.info(f"Received user input: {content_user_input}")
-    
     if 'assistant_id' not in session:
         assistant = initialize_assistant_for_session()
     else:
@@ -743,5 +742,6 @@ def chat():
 
 if __name__ == '__main__':
     logger.info('Main executed')
+    #initialize_resources()
     #app.run(host='0.0.0.0', port=8080, debug=False)
     app.run(host='0.0.0.0', port=8080, threaded=True, use_reloader=False)

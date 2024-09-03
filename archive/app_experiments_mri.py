@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, session
+from flask import Flask, render_template, request, redirect, url_for, jsonify
 from werkzeug.utils import secure_filename
 import os
 import openai
@@ -15,14 +15,14 @@ secret_name = "openai_api_key"
 region_name = "eu-central-1"
 
 # Create a Secrets Manager client
-boto3_session = boto3.session.Session()
-boto3_client = boto3_session.client(
+session = boto3.session.Session()
+client = session.client(
     service_name='secretsmanager',
     region_name=region_name
 )
 
 try:
-    get_secret_value_response = boto3_client.get_secret_value(
+    get_secret_value_response = client.get_secret_value(
         SecretId=secret_name
     )
 except ClientError as e:
@@ -41,7 +41,6 @@ if not api_key:
 client = openai.OpenAI(api_key=api_key)
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key'  # Set a secret key for session management
 
 # Determine the folder where the script is located
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -186,17 +185,9 @@ def create_assistant(client, function_calling_tool, file_search_tool):
             "Give your answers in german."
         ),
         model="gpt-4o-mini",
-        temperature=0.3,
+        temperature=0.1,
         tools=[file_search_tool] + function_calling_tool
     )
-    return assistant
-
-def initialize_assistant_for_session():
-    assistant = create_assistant(client, function_calling_tool, file_search_tool)
-    session['assistant_id'] = assistant.id
-    logger.info(f"Assistant created with ID: {assistant.id}")
-    file_paths_bucket = [os.path.join(base_dir, 'uploads', 'docs', filename) for filename in ['Input_1_sales.pdf', 'Zieldefinition MV v2.pdf']]
-    create_data_base(file_paths_bucket, assistant.id)
     return assistant
 
 def create_data_base(file_paths_bucket, assistant_id):
@@ -314,17 +305,18 @@ def target_analyze(file_path):
         }
         
     prompt_steps = [
-            "Ermittle die grundsätzliche Definition für die Zielart 1 Abteilungsziele!",
-            f'Wende diese Definitionen auf die folgenden Maklervertrieb Zahlen an und erstelle eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad! \nHier sind die Maklervertrieb Zahlen: \n{result_json} \nErzeuge deine Antwort strikt entsprechend folgender Vorgabe: \n{output_template_abteilung}',
-            "Ermittle die grundsätzliche Definition für die Zielart 2 Teamziele!",
-            f'Wende diese Definitionen auf die folgenden Maklervertrieb Zahlen an und erstelle eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad! \nHier sind die Maklervertrieb Zahlen: \n{result_json} \nErzeuge deine Antwort strikt entsprechend folgender Vorgabe: \n{output_template_team}',
-            "Ermittle die grundsätzliche Definition für die Messgröße Bestandsziele innerhalb derZielart 3 Persönliche Ziele!",
-            f'Wende diese Definitionen auf die folgenden Maklervertrieb Zahlen an und erstelle eine Auflistung der Makler, die diese Zielvorgaben erreichen! \nHier sind die Maklervertrieb Zahlen: \n{result_json} \nErzeuge deine Antwort strikt entsprechend folgender Vorgabe: \n{output_template_personal1}',
-            "Ermittle die grundsätzliche Definition für die Messgröße Neu- Mehrgeschäft innerhalb der Zielart 3 Persönliche Ziele!",
-            f'Wende diese Definitionen auf die folgenden Maklervertrieb Zahlen an und erstelle eine Auflistung der Makler, die diese Zielvorgaben erreichen! \nHier sind die Maklervertrieb Zahlen: \n{result_json} \nErzeuge deine Antwort strikt entsprechend folgender Vorgabe: \n{output_template_personal2}',
-            "Ermittle die grundsätzliche Definition für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele!",
-            f'Wende diese Definition auf die folgenden Maklervertrieb Zahlen an und erstelle eine Auflistung der Makler, die diese Zielvorgaben erreichen! \nHier sind die Maklervertrieb Zahlen: \n{result_json} \nErzeuge deine Antwort strikt entsprechend folgender Vorgabe: \n{output_template_personal3}',
-            f'Erstelle eine detaillierte Zusammenstellung aller zuvor ermittelten Kennzahlen und Erreichungsgrade! \nErzeuge deine Antwort strikt entsprechend folgender Vorgabe: \n{output_template_final}'
+            f'Zu folgenden Maklervertrieb Zahlen werde ich Dir nacheinander Fragen stellen: \n{result_json}'
+            "Ermittle die Definition für die Zielart 1 Abteilungsziele!",
+            f'Wende die Definition für die Zielart 1 Abteilungsziele auf die Maklervertrieb Zahlen an und erstelle eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad!',
+            "Ermittle die Definition für die Zielart 2 Teamziele!",
+            f'Wende die Definition für die Zielart 2 Teamziele auf die Maklervertrieb Zahlen an und erstelle eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad!',
+            "Ermittle die Definition für die Messgröße Bestandsziele innerhalb der Zielart 3 Persönliche Ziele!",
+            f'Wende die Definition für die Messgröße Bestandsziele innerhalb der Zielart 3 Persönliche Ziele auf die Maklervertrieb Zahlen an und erstelle eine Auflistung der Makler, die diese Zielvorgaben erreichen!',
+            "Ermittle die Definition für die Messgröße Neu- Mehrgeschäft innerhalb der Zielart 3 Persönliche Ziele!",
+            f'Wende die Definition für die Messgröße Neu- Mehrgeschäft innerhalb der Zielart 3 Persönliche Ziele auf die Maklervertrieb Zahlen an und erstelle eine Auflistung der Makler, die diese Zielvorgaben erreichen!',
+            "Ermittle die Definition für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele!",
+            f'Wende die Definition für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele auf die Maklervertrieb Zahlen an und erstelle eine Auflistung der Makler, die diese Zielvorgaben erreichen!',
+            f'Erstelle eine detaillierte Zusammenstellung aller zuvor ermittelten Kennzahlen und Erreichungsgrade!'
         ]
     
     temp_thread = create_thread(prompt_steps[0])
@@ -351,9 +343,12 @@ def target_analyze(file_path):
     temp_messages = list(client.beta.threads.messages.list(thread_id=temp_thread.id))
     response = temp_messages[0]
     logger.info('target_analyze completed successfully')
+    logger.info(f'Temp Messages: {temp_messages}')
     
     with app.app_context():
         return response
+        
+
         
 def target_gap(file_path):
     logger.info('target_gap function triggered')
@@ -513,6 +508,41 @@ def productive_broker_analyze(path):
     with app.app_context():
         return response
     
+def productive_broker_helper():
+    logger.info('productive_broker_helper')
+        
+    prompt_steps = [
+            "Ermittle die Definition für produktive Makler.",
+            f'Wende diese Definition auf die Maklervertrieb Zahlen an und sage mir welche Makler entsprechend dieser Definition produktiv sind.'
+        ]
+        
+    temp_thread = create_thread(prompt_steps[0])
+    logger.info(f'Temp thread created with ID: {temp_thread.id}')
+    temp_run1 = client.beta.threads.runs.create_and_poll(thread_id=temp_thread.id, assistant_id=assistant.id)
+    
+    for i, step in enumerate(prompt_steps):
+        logger.info(f"Running prompt step {i+1}")
+        
+        if i > 0:
+            temp_thread_message = client.beta.threads.messages.create(
+                temp_thread.id,
+                role="user",
+                content=step
+            )
+        
+        temp_run = client.beta.threads.runs.create_and_poll(thread_id=temp_thread.id, assistant_id=assistant.id)
+        
+        if temp_run.status != 'completed':
+            logger.info(f'Problem: target_analyze run step {i+1} not completed: {temp_run.status}')
+            with app.app_context():
+                return jsonify({"error": "An error occurred during the analysis"}), 500
+    
+    temp_messages = list(client.beta.threads.messages.list(thread_id=temp_thread.id))
+    response = temp_messages[0]
+    logger.info('target_analyze completed successfully')
+    
+    with app.app_context():
+        return response
 
 def create_output(run, tool_calls, path, thread):
     tool_outputs = []
@@ -630,11 +660,6 @@ def process_message(message):
 
 @app.route('/', methods=['GET', 'POST'])
 def home():
-    if 'assistant_id' not in session:
-        assistant = initialize_assistant_for_session()
-    else:
-        assistant = client.beta.assistants.retrieve(session['assistant_id'])
-    
     if request.method == 'POST' and 'document' in request.files:
         file = request.files['document']
         if file and allowed_file(file.filename):
@@ -654,11 +679,6 @@ def check_status():
         return jsonify({"status": "completed", "response": analysis_result.get('response'), "messages": analysis_result.get('messages', []), "suggestions": analysis_result.get('suggestions', [])})
     logger.info('Task still running')
     return jsonify({"status": "running"})
-    
-@app.route('/reset_session', methods=['GET'])
-def reset_session():
-    session.clear()
-    return redirect(url_for('home'))
 
 @app.route('/chat', methods=['POST'])
 def chat():
@@ -667,11 +687,6 @@ def chat():
 
     content_user_input = request.json.get('user_input')
     logger.info(f"Received user input: {content_user_input}")
-    
-    if 'assistant_id' not in session:
-        assistant = initialize_assistant_for_session()
-    else:
-        assistant = client.beta.assistants.retrieve(session['assistant_id'])
     
     if thread is None:
         thread = create_thread(content_user_input)
@@ -743,5 +758,6 @@ def chat():
 
 if __name__ == '__main__':
     logger.info('Main executed')
+    initialize_resources()
     #app.run(host='0.0.0.0', port=8080, debug=False)
     app.run(host='0.0.0.0', port=8080, threaded=True, use_reloader=False)

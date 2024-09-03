@@ -119,6 +119,18 @@
         .suggestion-item:hover {
             text-decoration: underline;
         }
+        /* Your existing styles */
+        .reset-session-button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .reset-session-button:hover {
+            background-color: #c82333;
+        }
         #loader {
             display: none;
             font-size: 1.5em;
@@ -145,6 +157,7 @@
                         <li>{{ file }}</li>
                     {% endfor %}
                 </ul>
+                <button class="reset-session-button" onclick="resetSession()">Reset Session</button>
             </div>
             <div class="chat-window">
                 <h2>Chat Window</h2>
@@ -178,6 +191,18 @@
             });
             clearTimeout(id);
             return response;
+        }
+        
+        function resetSession() {
+            fetch('/reset_session')
+                .then(response => {
+                    if (response.redirected) {
+                        window.location.href = response.url;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error resetting session:', error);
+                });
         }
 
         function appendMessage(message, sender) {
