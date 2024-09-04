@@ -292,7 +292,6 @@ def soll_ist_analyze(broker_number, file_path):
     return performance_list
 
 def target_analyze(file_path):
-    # Einlesen der Excel-Datei
     logger.info('target_analyze function triggered')
         
     output_template_final = {
@@ -372,7 +371,38 @@ def get_produktive_makler():
         
 def target_gap(file_path):
     logger.info('target_gap function triggered')
-    return 'Max Mustermann hat eine Performance = 65%, Dieter Hans hat eine Performance = 82%, Ulrich Mark hat eine Performance = 85% '
+        
+    output_template_final = {
+            "Ich habe Dein Maklerportfolio analysiert und Zielkorrelationen berücksichtig um deine persönlichen Ziele effizient zu erreichen."
+            "\n- Dem Makler (Accountname, Strukturnummer MSN06) fehlen noch XX TEUR im Bestandsgeschäft (Privat + SMC) um das VJ Ziel zu erreichen. Gleichzeitig wird er dadurch produktiv."
+            "\n- Dem Makler (Accountname, Strukturnummer MSN06) fehlen noch XX TEUR im Bestandsgeschäft (MC) um das VJ Ziel zu erreichen. Gleichzeitig wird er dadurch produktiv."
+            "\n- Dem Makler(Accountname, Strukturnummer MSN06) benötigt noch ein Neu-/Mehrgeschäft (Privat+SMC) von XX TEUR um das VJ Ziel zu erreichen. Gleichzeitig wird er dadurch produktiv."
+            "\n\nDurch die Steigerung des Bestandsgeschäfts und Mehr-/Neubeitrag dieser Makler erreichst Du effizient und optimal Deine Ziele:"
+            "\nBestandsziele:"
+            "\n- 5 von 5 Maklern werden den Bestand (Privat + SMC) im Vergleich zum Vorjahr steigern. "
+            "\n- X von 8 Maklern werden den Bestand (Firmen MC) im Vergleich zum Vorjahr steigern."
+            "\nIngesamt wird Dein Maklerportfolio ein Bestandsvolument von X TEUR erreichen, im VJ wurden X TEUR erreicht."
+            "\n\nNeu-/Mehrgeschäftsziele:"
+            "\n- 7 von 8 Makern werden das Neu/Mehrgeschäft(Privat + SMC) im Vergleich zum Vorjahr steigern. "
+            "\n- 7 von 8 Makern werden das Neu/Mehrgeschäft(Firmen MC) im Vergleich zum Vorjahr steigern." 
+            "\n\nIngesamt wird Dein Maklerportfolio ein Neu-/Mehrgeschäft von X TEUR haben, im VJ wurden X TEUR erreicht."
+            "\n\nProduktive Makler: "
+            "\n- 7 von 7 Maklern werden produktiv."
+        }
+
+    result3 = get_bestandsziele()
+    result4 = get_neugeschaeftsziele()
+    result5 = get_produktive_makler()
+    
+    prompt_steps = [
+            f'Hier sind Definitionen und Ergebnisse für die persönliche Zielerreichung des Maklerbetreuers auf Ebene der einzelnen Makler: \nBestandsziele: {result3} \nNeu-/Mehrgeschäftsziele: {result4} \n Ziel Produktive Makler: {result5} \nBeantworte mir in der Folge Fragen auf Basis dieser Definitionen und Daten.',
+            f'Ermittle, wie die einzelnen Makler die Ziele (Bestand, Neu-/Mehrgeschäft, Produktiver Makler) am effizientesten erreichen können, falls diese noch nicht erreicht wurden. Konzentriere dich auf diejenigen Kennzahlen, die aufgrund einer Zielkorrelation den größten Effekt auf die Zielerreichung der meisten Ziele haben.',
+            f'Nimm an, die untersuchten Makler verbessern ihre Messgrößen entsprechend. Wieviele Makler werden dann ihren Bestand im Vergleich zum Vorjahr steigern? Wieviele Makler werden dadurch produktiv? \nHier ein Beispiel: - Dem Makler MaklerCorp fehlen noch 1000 € im Bestandsgeschäft (Privat + SMC) um das Vorjahres-Ziel zu erreichen. Gleichzeitig erreicht er dadurch das Ziel Produktiver Makler.'
+            f'Fasse deine Ergebnisse entsprechend folgendem Beispiel zusammen: {output_template_final}'
+        ]
+    
+    with app.app_context():
+        return run_prompts_with_temp_thread("target_analyze", prompt_steps)
 
 def team_analyze():
     return 'Max Mustermann hat eine Performance = 65%, Dieter Hans hat eine Performance = 82%, Ulrich Mark hat eine Performance = 85% '
@@ -564,6 +594,14 @@ def check_status():
     
 @app.route('/reset_session', methods=['GET'])
 def reset_session():
+    global assistant
+    assistant = None
+    global thread
+    thread = None
+    global temp_assistant
+    temp_assistant = None
+    global temp_thread
+    temp_thread = None
     session.clear()
     return redirect(url_for('home'))
 
