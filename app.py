@@ -351,88 +351,6 @@ def target_analyze(file_path):
 def target_gap(file_path):
     logger.info('target_gap function triggered')
     return 'Max Mustermann hat eine Performance = 65%, Dieter Hans hat eine Performance = 82%, Ulrich Mark hat eine Performance = 85% '
-    '''
-    # Einlesen der Excel-Datei
-    logger.info('target_analyze function triggered')
-    data = pd.read_excel(file_path, engine='openpyxl')
-    result_json = data.to_json(orient='records', indent=4)
-    
-    output_template_abteilung = {
-            "Abteilungsziele:"
-            "\n- Die Schadequote liegt mit 32,05% derzeit im Zielbereich (Zielgröße 50,00 %)."
-        }
-        
-    output_template_team = {
-            "Teamziele:"
-            "\n- Im Team wurde der Zielwert des Bestands i.H.v. 142.000 € noch nicht erreicht. Aktuell liegt der Bestand bei 69.015€.\n"
-            "\n- Der Zielwert des Neu-/Mehrgeschäftes i.H.v. 164.798 € wurde bislang noch nicht erreicht und beträgt derzeit 75.256 €."
-        }
-    
-    output_template_personal1 = {
-            "Persönliches Ziel:"
-            "\nBestandsziele:"
-            "\n- 2 von 5 Maklern konnten den Bestand (Privat + SMC) im Vergleich zum Vorjahr steigern.\n" 
-            "\n- 3 von 8 Maklern konnten den Bestand (Firmen MC) im Vergleich zum Vorjahr steigern.\n"
-            "\nIngesamt hat Dein Maklerportfolio ein Bestandsvolument von X TEUR, im VJ wurden X TEUR erreicht.\n\n"
-        }
-        
-    output_template_personal2 = {
-            "Persönliches Ziel:"
-            "\nNeu-/Mehrgeschäftsziele:"
-            "\n- 4 von 8 Makern konnten das Neu/Mehrgeschäft(Privat + SMC) im Vergleich zum Vorjahr steigern. "
-            "\n- 4 von 8 Makern konnten das Neu/Mehrgeschäft(Firmen MC) im Vergleich zum Vorjahr steigern. "
-            "\nIngesamt hat Dein Maklerportfolio ein Neu-/Mehrgeschäft von X TEUR, im VJ wurden X TEUR erreicht."
-        }
-
-    output_template_personal3 = {
-            "Persönliches Ziel:"
-            "\nProduktive Makler:"
-            "\n- 4 von 7 Maklern sind bereits produktiv."
-            "\n\nWenn Du möchtest gebe ich Dir gerne eine Detailssicht zu Deinem Maklerportfolio und empfehle Maßnahmen, um Deine persönlichen Ziele effizient zu erreichen. "
-        }
-        
-    prompt_steps = [
-            "Ermittle die grundsätzliche Definition für die Zielart 1 Abteilungsziele!",
-            f'Wende diese Definitionen auf die folgenden Maklervertrieb Zahlen und erstelle eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad! \nHier sind die Maklervertrieb Zahlen: \n{result_json} Erzeuge deine Antwort entsprechend folgendem Beispiel: \n{output_template_abteilung}',
-            "Ermittle die grundsätzliche Definition für die Zielart 2 Teamziele!",
-            f'Wende diese Definitionen auf die folgenden Maklervertrieb Zahlen und erstelle eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad! \nHier sind die Maklervertrieb Zahlen: \n{result_json} Erzeuge deine Antwort entsprechend folgendem Beispiel: \n{output_template_team}',
-            "Ermittle die grundsätzliche Definition für die Zielart 3 Persönliche Ziele für die Messgröße Bestandsziele!",
-            f'Wende diese Definitionen auf die folgenden Maklervertrieb Zahlen und erstelle eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad! \nHier sind die Maklervertrieb Zahlen: \n{result_json} Erzeuge deine Antwort entsprechend folgendem Beispiel: \n{output_template_personal1}',
-            "Ermittle die grundsätzliche Definition für die Zielart 3 Persönliche Ziele für die Messgröße Neu- Mehrgeschäft!",
-            f'Wende diese Definitionen auf die folgenden Maklervertrieb Zahlen und erstelle eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad: \nHier sind die Maklervertrieb Zahlen: \n{result_json} Erzeuge deine Antwort entsprechend folgendem Beispiel: \n{output_template_personal2}',
-            "Ermittle die grundsätzliche Definition für die Zielart 3 Persönliche Ziele für die Messgröße Produktive Makler!",
-            f'Wende diese Definitionen auf die folgenden Maklervertrieb Zahlen und erstelle eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad: \nHier sind die Maklervertrieb Zahlen: \n{result_json} Erzeuge deine Antwort entsprechend folgendem Beispiel: \n{output_template_personal3}',
-            f'Erstelle eine detaillierte Zusammenstellung aller zuvor ermittelten Kennzahlen und Erreichungsgrade!'
-        ]
-    
-    temp_thread = create_thread(prompt_steps[0])
-    logger.info(f'Temp thread created with ID: {temp_thread.id}')
-    temp_run1 = client.beta.threads.runs.create_and_poll(thread_id=temp_thread.id, assistant_id=assistant.id)
-    
-    for i, step in enumerate(prompt_steps):
-        logger.info(f"Running prompt step {i+1}")
-        
-        if i > 0:
-            temp_thread_message = client.beta.threads.messages.create(
-                temp_thread.id,
-                role="user",
-                content=step
-            )
-        
-        temp_run = client.beta.threads.runs.create_and_poll(thread_id=temp_thread.id, assistant_id=assistant.id)
-        
-        if temp_run.status != 'completed':
-            logger.info(f'Problem: target_analyze run step {i+1} not completed: {temp_run.status}')
-            with app.app_context():
-                return jsonify({"error": "An error occurred during the analysis"}), 500
-    
-    temp_messages = list(client.beta.threads.messages.list(thread_id=temp_thread.id))
-    response = temp_messages[0]
-    logger.info('target_analyze completed successfully')
-    
-    with app.app_context():
-        return response
-    '''
 
 def team_analyze():
     return 'Max Mustermann hat eine Performance = 65%, Dieter Hans hat eine Performance = 82%, Ulrich Mark hat eine Performance = 85% '
@@ -477,34 +395,9 @@ def productive_broker_analyze(path):
             "Ermittle die Definition für produktive Makler.",
             f'Wende diese Definition auf die folgenden Maklervertrieb Zahlen an und sage mir welche Makler entsprechend dieser Definition produktiv sind: {result_json}. Strukturiere deine Antwort entsprechend folgendem Beispiel: {output_template}'
         ]
-        
-    temp_thread = create_thread(prompt_steps[0])
-    logger.info(f'Temp thread created with ID: {temp_thread.id}')
-    temp_run1 = client.beta.threads.runs.create_and_poll(thread_id=temp_thread.id, assistant_id=assistant.id)
-    
-    for i, step in enumerate(prompt_steps):
-        logger.info(f"Running prompt step {i+1}")
-        
-        if i > 0:
-            temp_thread_message = client.beta.threads.messages.create(
-                temp_thread.id,
-                role="user",
-                content=step
-            )
-        
-        temp_run = client.beta.threads.runs.create_and_poll(thread_id=temp_thread.id, assistant_id=assistant.id)
-        
-        if temp_run.status != 'completed':
-            logger.info(f'Problem: target_analyze run step {i+1} not completed: {temp_run.status}')
-            with app.app_context():
-                return jsonify({"error": "An error occurred during the analysis"}), 500
-    
-    temp_messages = list(client.beta.threads.messages.list(thread_id=temp_thread.id))
-    response = temp_messages[0]
-    logger.info('target_analyze completed successfully')
     
     with app.app_context():
-        return response
+        return run_prompts_with_temp_thread("productive_broker_analyze", prompt_steps)
     
 
 def create_output(run, tool_calls, path, thread):
