@@ -137,7 +137,7 @@ function_calling_tool = [
         "type": "function",
         "function": {
             "name": "productive_broker_analyze",
-            "description": "Get an overview of the current productive brokers."
+            "description": "Get an overview of the brokers who can currently be labeled as productive according to target definition."
         }
     },
     {
@@ -165,6 +165,7 @@ file_search_tool = {
 
 assistant = None
 thread = None
+kb_files = ['Input_1_sales.pdf', 'Zieldefinition MV v2.pdf', 'Maklervertrieb Zahlen v0.4.docx']
 
 def create_assistant(client, function_calling_tool, file_search_tool):
     global assistant
@@ -186,7 +187,7 @@ def initialize_assistant_for_session():
     assistant = create_assistant(client, function_calling_tool, file_search_tool)
     session['assistant_id'] = assistant.id
     logger.info(f"Assistant created with ID: {assistant.id}")
-    file_paths_bucket = [os.path.join(base_dir, 'uploads', 'docs', filename) for filename in ['Input_1_sales.pdf', 'Zieldefinition MV v2.pdf', 'Maklervertrieb Zahlen v03.docx']]
+    file_paths_bucket = [os.path.join(base_dir, 'uploads', 'docs', filename) for filename in kb_files]
     create_data_base(file_paths_bucket, assistant.id)
     return assistant
 
@@ -218,7 +219,7 @@ def run_prompts_with_temp_thread(function, prompt_steps):
         temperature=0.1,
         tools=[file_search_tool]
     )
-    file_paths_bucket = [os.path.join(base_dir, 'uploads', 'docs', filename) for filename in ['Input_1_sales.pdf', 'Zieldefinition MV v2.pdf', 'Maklervertrieb Zahlen v03.docx']]
+    file_paths_bucket = [os.path.join(base_dir, 'uploads', 'docs', filename) for filename in kb_files]
     create_data_base(file_paths_bucket, temp_assistant.id)
     
     temp_thread = client.beta.threads.create()
