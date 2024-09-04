@@ -397,7 +397,7 @@ def target_gap(file_path):
     prompt_steps = [
             f'Hier sind Definitionen und Ergebnisse für die persönliche Zielerreichung des Maklerbetreuers auf Ebene der einzelnen Makler: \nBestandsziele: {result3} \nNeu-/Mehrgeschäftsziele: {result4} \n Ziel Produktive Makler: {result5} \nBeantworte mir in der Folge Fragen auf Basis dieser Definitionen und Daten.',
             f'Ermittle, wie die einzelnen Makler die Ziele (Bestand, Neu-/Mehrgeschäft, Produktiver Makler) am effizientesten erreichen können, falls diese noch nicht erreicht wurden. Konzentriere dich auf diejenigen Kennzahlen, die aufgrund einer Zielkorrelation den größten Effekt auf die Zielerreichung der meisten Ziele haben.',
-            f'Nimm an, die untersuchten Makler verbessern ihre Messgrößen entsprechend. Wieviele Makler werden dann ihren Bestand im Vergleich zum Vorjahr steigern? Wieviele Makler werden dadurch produktiv? \nHier ein Beispiel: - Dem Makler MaklerCorp fehlen noch 1000 € im Bestandsgeschäft (Privat + SMC) um das Vorjahres-Ziel zu erreichen. Gleichzeitig erreicht er dadurch das Ziel Produktiver Makler.'
+            f'Nimm an, die untersuchten Makler verbessern ihre Messgrößen entsprechend. Wieviele Makler werden dann ihren Bestand im Vergleich zum Vorjahr steigern? Wieviele Makler werden dadurch produktiv? \nHier ein Beispiel: - Dem Makler MaklerCorp fehlen noch 1000 € im Bestandsgeschäft (Privat + SMC) um das Vorjahres-Ziel zu erreichen. Gleichzeitig erreicht er dadurch das Ziel Produktiver Makler.',
             f'Fasse deine Ergebnisse entsprechend folgendem Beispiel zusammen: {output_template_final}'
         ]
     
