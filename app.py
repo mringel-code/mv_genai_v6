@@ -324,8 +324,7 @@ def target_analyze(file_path):
 
 def get_abteilungsziele():
     prompt_steps = [
-            "Ermittle die Definition für die Zielart 1 Abteilungsziele!",
-            f'Wende diese Definition auf die vorliegenden Maklervertrieb Zahlen an und erstelle eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad!'
+            f'Ermittle die Definition für die Zielart 1 Abteilungsziele und wende diese Definition auf die vorliegenden Maklervertrieb Zahlen. Erstelle daraus eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad! Antworte möglichst detailliert, da deine Antwort in anderen Abfragen als Input weiterverwendet werden soll.'
         ]
     
     with app.app_context():
@@ -333,8 +332,7 @@ def get_abteilungsziele():
         
 def get_teamziele():
     prompt_steps = [
-            "Ermittle die Definition für die Zielart 2 Teamziele!",
-            f'Wende diese Definitionen auf die vorliegenden Maklervertrieb Zahlen an und erstelle eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad!'
+            f'Ermittle die Definition für die Zielart 2 Teamziele und wende diese Definitionen auf die vorliegenden Maklervertrieb Zahlen an. Erstelle daraus eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad! Antworte möglichst detailliert, da deine Antwort in anderen Abfragen als Input weiterverwendet werden soll.'
         ]
     
     with app.app_context():
@@ -342,8 +340,7 @@ def get_teamziele():
         
 def get_bestandsziele():
     prompt_steps = [
-            "Ermittle die Definition für die Messgröße Bestandsziele innerhalb der Zielart 3 Persönliche Ziele!",
-            f'Wende diese Definitionen auf die vorliegenden Maklervertrieb Zahlen an und erstelle eine Auflistung der Makler, die diese Zielvorgaben erreichen!'
+            f'Ermittle die Definition für die Messgröße Bestandsziele innerhalb der Zielart 3 Persönliche Ziele und wende diese Definitionen auf die vorliegenden Maklervertrieb Zahlen an. Erstelle daraus eine Auflistung der Makler, die diese Zielvorgaben erreichen! Antworte möglichst detailliert, da deine Antwort in anderen Abfragen als Input weiterverwendet werden soll.'
         ]
     
     with app.app_context():
@@ -351,8 +348,7 @@ def get_bestandsziele():
 
 def get_neugeschaeftsziele():
     prompt_steps = [
-            "Ermittle die Definition für die Messgröße Neu- Mehrgeschäft innerhalb der Zielart 3 Persönliche Ziele!",
-            f'Wende diese Definition auf die vorliegenden Maklervertrieb Zahlen an und erstelle eine Auflistung der Makler, die diese Zielvorgaben erreichen!'
+            f'Ermittle die Definition für die Messgröße Neu- Mehrgeschäft innerhalb der Zielart 3 Persönliche Ziele und wende diese Definition auf die vorliegenden Maklervertrieb Zahlen an. Erstelle daraus eine Auflistung der Makler, die diese Zielvorgaben erreichen! Antworte möglichst detailliert, da deine Antwort in anderen Abfragen als Input weiterverwendet werden soll.'
         ]
     
     with app.app_context():
@@ -360,8 +356,7 @@ def get_neugeschaeftsziele():
         
 def get_produktive_makler():
     prompt_steps = [
-            "Ermittle die grundsätzliche Definition für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele!",
-            f'Wende diese Definition auf die vorliegenden Maklervertrieb Zahlen an und erstelle eine Auflistung der Makler, die diese Zielvorgaben erreichen!'
+            f'Ermittle die Definition für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele und wende diese Definition auf die vorliegenden Maklervertrieb Zahlen. Erstelle daraus eine Auflistung der Makler, die diese Zielvorgaben erreichen! Antworte möglichst detailliert, da deine Antwort in anderen Abfragen als Input weiterverwendet werden soll.'
         ]
     
     with app.app_context():
@@ -382,9 +377,7 @@ def create_appointment():
     return 'Termin wurde im Kalender hinterlegt.'
     
 def productive_broker_analyze(path):
-    logger.info('productive_broker_analyze')
-    data = pd.read_excel(path, engine='openpyxl')
-    result_json = data.to_json(orient='records', indent=4)
+    logger.info('productive_broker_analyze function triggered')
     
     output_template = {
             "Im Folgenden findest Du eine Auflistung deiner produktiven Makler:"
@@ -409,17 +402,12 @@ def productive_broker_analyze(path):
             "\n- Neu-/Mehrgeschäft Ist: 25.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): erfüllt"
             "\n- Produktiv Ja/Nein: Ja"
         }
+    
+    result = get_produktive_makler()
 
     prompt_steps = [
-            "Ermittle die Definition für produktive Makler.",
-            f'Wende diese Definition auf die vorliegenden Maklervertrieb Zahlen an. \n\nFasse die Ergebnisse entsprechend folgendem Beispiel zusammen: {output_template}'
+            f'Hier ist eine Auflistung der produktiven Makler: {result} \nFasse die Ergebnisse entsprechend folgendem Beispiel zusammen: {output_template}'
         ]
-    '''
-    prompt_steps = [
-            "Ermittle die Definition für produktive Makler.",
-            f'Wende diese Definition auf die folgenden Maklervertrieb Zahlen an und sage mir welche Makler entsprechend dieser Definition produktiv sind: {result_json}. Strukturiere deine Antwort entsprechend folgendem Beispiel: {output_template}'
-        ]
-        '''
     
     with app.app_context():
         return run_prompts_with_temp_thread("productive_broker_analyze", prompt_steps)
