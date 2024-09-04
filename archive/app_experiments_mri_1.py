@@ -183,7 +183,7 @@ def create_assistant(client, function_calling_tool, file_search_tool):
     return assistant
 
 def initialize_assistant_for_session():
-    assistant = create_assistant(client, function_calling_tool, file_search_tool)
+    create_assistant(client, function_calling_tool, file_search_tool)
     session['assistant_id'] = assistant.id
     logger.info(f"Assistant created with ID: {assistant.id}")
     file_paths_bucket = [os.path.join(base_dir, 'uploads', 'docs', filename) for filename in ['Input_1_sales.pdf', 'Zieldefinition MV v2.pdf', 'Maklervertrieb Zahlen v03.docx']]
@@ -366,7 +366,7 @@ def get_produktive_makler():
     
     with app.app_context():
         return run_prompts_with_temp_thread("get_produktive_makler", prompt_steps)
-        
+
 def target_gap(file_path):
     logger.info('target_gap function triggered')
     return 'Max Mustermann hat eine Performance = 65%, Dieter Hans hat eine Performance = 82%, Ulrich Mark hat eine Performance = 85% '
@@ -409,6 +409,7 @@ def productive_broker_analyze(path):
             "\n- Neu-/Mehrgeschäft Ist: 25.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): erfüllt"
             "\n- Produktiv Ja/Nein: Ja"
         }
+    
 
     prompt_steps = [
             "Ermittle die Definition für produktive Makler.",
@@ -542,6 +543,7 @@ def process_message(message):
 @app.route('/', methods=['GET', 'POST'])
 def home():
     if 'assistant_id' not in session:
+        print(session)
         assistant = initialize_assistant_for_session()
     else:
         assistant = client.beta.assistants.retrieve(session['assistant_id'])
@@ -575,6 +577,7 @@ def reset_session():
 def chat():
     global thread
     global analysis_result
+    global assistant
 
     content_user_input = request.json.get('user_input')
     logger.info(f"Received user input: {content_user_input}")
@@ -582,7 +585,7 @@ def chat():
     if 'assistant_id' not in session:
         assistant = initialize_assistant_for_session()
     else:
-        assistant = client.beta.assistants.retrieve(session['assistant_id'])
+        assistant = client.beta.assistants.retrieve(session[assistant.id])
     
     if thread is None:
         thread = create_thread(content_user_input)
