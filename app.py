@@ -165,6 +165,8 @@ file_search_tool = {
 
 assistant = None
 thread = None
+temp_assistant = None
+temp_thread = None
 kb_files = ['Input_1_sales.pdf', 'Zieldefinition MV v2.pdf', 'Maklervertrieb Zahlen v0.4.docx']
 
 def create_assistant(client, function_calling_tool, file_search_tool):
@@ -208,22 +210,27 @@ def create_data_base(file_paths_bucket, assistant_id):
     logger.info(f'File batch file count: {file_batch.file_counts}')
     
 def run_prompts_with_temp_thread(function, prompt_steps):
-    temp_assistant = client.beta.assistants.create(
-        name="Broker Assistant",
-        instructions=(
-            "You are an expert performance advisor helping an account manager manage the performance of his insurance broker accounts. "
-            "Use your knowledge base to answer questions and refer to the sources from your knowledge base you used to answer the question in your response. "
-            "Give your answers in german."
-        ),
-        model="gpt-4o-mini",
-        temperature=0.1,
-        tools=[file_search_tool]
-    )
-    file_paths_bucket = [os.path.join(base_dir, 'uploads', 'docs', filename) for filename in kb_files]
-    create_data_base(file_paths_bucket, temp_assistant.id)
+    global temp_thread
+    global temp_assistant
     
-    temp_thread = client.beta.threads.create()
-    logger.info(f'Temp thread created with ID: {temp_thread.id}')
+    if temp_thread is None:
+        temp_thread = client.beta.threads.create()
+        logger.info(f'Temp thread created with ID: {temp_thread.id}')
+    
+        temp_assistant = client.beta.assistants.create(
+            name="Broker Assistant",
+            instructions=(
+                "You are an expert performance advisor helping an account manager manage the performance of his insurance broker accounts. "
+                "Use your knowledge base to answer questions and refer to the sources from your knowledge base you used to answer the question in your response. "
+                "Give your answers in german."
+            ),
+            model="gpt-4o-mini",
+            temperature=0.1,
+            tools=[file_search_tool]
+        )
+        logger.info(f"Temp assistant created with ID: {assistant.id}")
+        file_paths_bucket = [os.path.join(base_dir, 'uploads', 'docs', filename) for filename in kb_files]
+        create_data_base(file_paths_bucket, temp_assistant.id)
     
     for i, step in enumerate(prompt_steps):
         logger.info(f"Running prompt step {i+1} of {function}")
