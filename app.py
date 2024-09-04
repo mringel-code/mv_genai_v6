@@ -166,15 +166,6 @@ file_search_tool = {
 assistant = None
 thread = None
 
-def initialize_resources():
-    global assistant
-
-    if assistant is None:
-        assistant = create_assistant(client, function_calling_tool, file_search_tool)
-        logger.info(f"Assistant created with ID: {assistant.id}")
-        file_paths_bucket = [os.path.join(base_dir, 'uploads', 'docs', filename) for filename in ['Input_1_sales.pdf', 'Zieldefinition MV v2.pdf']]
-        create_data_base(file_paths_bucket, assistant.id)
-
 def create_assistant(client, function_calling_tool, file_search_tool):
     global assistant
     
@@ -186,7 +177,7 @@ def create_assistant(client, function_calling_tool, file_search_tool):
             "Give your answers in german."
         ),
         model="gpt-4o-mini",
-        temperature=0.3,
+        temperature=0.1,
         tools=[file_search_tool] + function_calling_tool
     )
     return assistant
@@ -214,6 +205,33 @@ def create_data_base(file_paths_bucket, assistant_id):
     )
     logger.info(f'File batch status: {file_batch.status}')
     logger.info(f'File batch file count: {file_batch.file_counts}')
+    
+def run_prompts_with_temp_thread(function, prompt_steps):
+    temp_thread = client.beta.threads.create()
+    logger.info(f'Temp thread created with ID: {temp_thread.id}')
+    
+    for i, step in enumerate(prompt_steps):
+        logger.info(f"Running prompt step {i+1}")
+        
+        temp_thread_message = client.beta.threads.messages.create(
+            temp_thread.id,
+            role="user",
+            content=step
+        )
+        
+        temp_run = client.beta.threads.runs.create_and_poll(thread_id=temp_thread.id, assistant_id=assistant.id)
+        
+        if temp_run.status != 'completed':
+            logger.info(f'Problem: {function} run step {i+1} not completed: {temp_run.status}')
+            with app.app_context():
+                return jsonify({"error": "An error occurred during the analysis"}), 500
+    
+    temp_messages = list(client.beta.threads.messages.list(thread_id=temp_thread.id))
+    response = temp_messages[0]
+    logger.info(f'{function} completed successfully')
+    
+    with app.app_context():
+        return response
 
 def soll_ist_analyze(broker_number, file_path):
     df = pd.read_excel(file_path, engine='openpyxl')
@@ -327,33 +345,8 @@ def target_analyze(file_path):
             f'Erstelle eine detaillierte Zusammenstellung aller zuvor ermittelten Kennzahlen und Erreichungsgrade! \nErzeuge deine Antwort strikt entsprechend folgender Vorgabe: \n{output_template_final}'
         ]
     
-    temp_thread = create_thread(prompt_steps[0])
-    logger.info(f'Temp thread created with ID: {temp_thread.id}')
-    temp_run1 = client.beta.threads.runs.create_and_poll(thread_id=temp_thread.id, assistant_id=assistant.id)
-    
-    for i, step in enumerate(prompt_steps):
-        logger.info(f"Running prompt step {i+1}")
-        
-        if i > 0:
-            temp_thread_message = client.beta.threads.messages.create(
-                temp_thread.id,
-                role="user",
-                content=step
-            )
-        
-        temp_run = client.beta.threads.runs.create_and_poll(thread_id=temp_thread.id, assistant_id=assistant.id)
-        
-        if temp_run.status != 'completed':
-            logger.info(f'Problem: target_analyze run step {i+1} not completed: {temp_run.status}')
-            with app.app_context():
-                return jsonify({"error": "An error occurred during the analysis"}), 500
-    
-    temp_messages = list(client.beta.threads.messages.list(thread_id=temp_thread.id))
-    response = temp_messages[0]
-    logger.info('target_analyze completed successfully')
-    
     with app.app_context():
-        return response
+        return run_prompts_with_temp_thread("target_analyze", prompt_steps)
         
 def target_gap(file_path):
     logger.info('target_gap function triggered')
