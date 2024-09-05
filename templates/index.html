@@ -238,7 +238,7 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ user_input: userMessage }),
-                    timeout: 300000  // Setze ein Timeout von 30 Sekunden
+                    timeout: 100000  // Setze ein Timeout von 30 Sekunden
                 })
                 .then(response => response.json())
                 .then(data => {
@@ -268,7 +268,7 @@
         function checkStatus() {
             fetchWithTimeout('/check_status', {
                 method: 'GET',
-                timeout: 15000  // Setze ein Timeout von 5 Sekunden für den Statuscheck
+                timeout: 5000  // Setze ein Timeout von 5 Sekunden für den Statuscheck
             })
             .then(response => response.json())
             .then(data => {
@@ -279,7 +279,7 @@
                     suggestFollowUpQuestions(data.suggestions);
                     document.getElementById('sendButton').disabled = false;
                 } else if (data.status === 'running') {
-                    setTimeout(checkStatus, 15000); // Überprüfe erneut nach einer Verzögerung
+                    setTimeout(checkStatus, 5000); // Überprüfe erneut nach einer Verzögerung
                 } else if (data.error) {
                     appendMessage(data.error, 'assistant');
                     document.getElementById('loader').style.display = 'none';
