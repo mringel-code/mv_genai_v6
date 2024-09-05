@@ -19,10 +19,25 @@
             overflow: hidden;
         }
         .header {
-            background-color: #007bff;
+            background-color: #000000;
+            height: 50px; /* anpassen an die gewünschte Höhe */
+            display: flex;
+            align-items: center;
+            position: relative;  /* WICHTIG: Für absolute Positionierung */
             padding: 5px;
-            text-align: center;
             color: white;
+        }
+        .header img {
+            height: 15px; /* anpassen an die gewünschte Höhe */
+            margin-right: 10px;
+            margin-left: 10px;
+        }
+        .header .header-text {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
         }
         .header h1 {
             margin: 0;
@@ -141,8 +156,11 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Zielnavigator</h1>
-            <p>Ihr persönlicher Assistent für das Management ihrer Makler-Accounts</p>
+            <img src="logo.svg" alt="Logo" aria-label="Company Logo">
+            <div class="header-text">
+                <h1>Zielnavigator</h1>
+                <p>Ihr persönlicher Assistent für das Management ihrer Makler-Accounts</p>
+            </div>
         </div>
         <div class="main">
             <div class="sidebar">
