@@ -171,7 +171,7 @@ kb_files = ['Input_1_sales.pdf', 'Zieldefinition MV v2.pdf', 'Maklervertrieb Zah
 
 def create_assistant(client, function_calling_tool, file_search_tool):
     global assistant
-    assistant = client.beta.assistants.retrieve("asst_O5PE2tkDraCQyqe4J0x70EzW")
+    assistant = client.beta.assistants.retrieve("asst_7Hx0vFUQZDlJd1aSRm8HjtjR")
     '''
     assistant = client.beta.assistants.create(
         name="Broker Assistant",
@@ -218,7 +218,7 @@ def run_prompts_with_temp_thread(function, prompt_steps):
     if temp_thread is None:
         temp_thread = client.beta.threads.create()
         logger.info(f'Temp thread created with ID: {temp_thread.id}')
-        temp_assistant = client.beta.assistants.retrieve("asst_h3h6ij4cDaoJj6F9zv0hOjSt")
+        temp_assistant = client.beta.assistants.retrieve("asst_trlWRLh1q6z7OWMv2NWJI8OZ")
         '''
         temp_assistant = client.beta.assistants.create(
             name="Broker Assistant",
