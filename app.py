@@ -171,7 +171,8 @@ kb_files = ['Input_1_sales.pdf', 'Zieldefinition MV v2.pdf', 'Maklervertrieb Zah
 
 def create_assistant(client, function_calling_tool, file_search_tool):
     global assistant
-    
+    assistant = client.beta.assistants.retrieve("asst_O5PE2tkDraCQyqe4J0x70EzW")
+    '''
     assistant = client.beta.assistants.create(
         name="Broker Assistant",
         instructions=(
@@ -183,14 +184,15 @@ def create_assistant(client, function_calling_tool, file_search_tool):
         temperature=0.1,
         tools=[file_search_tool] + function_calling_tool
     )
+    '''
     return assistant
 
 def initialize_assistant_for_session():
     assistant = create_assistant(client, function_calling_tool, file_search_tool)
     session['assistant_id'] = assistant.id
-    logger.info(f"Assistant created with ID: {assistant.id}")
-    file_paths_bucket = [os.path.join(base_dir, 'uploads', 'docs', filename) for filename in kb_files]
-    create_data_base(file_paths_bucket, assistant.id)
+    logger.info(f"Assistant retrieved with ID: {assistant.id}")
+    #file_paths_bucket = [os.path.join(base_dir, 'uploads', 'docs', filename) for filename in kb_files]
+    #create_data_base(file_paths_bucket, assistant.id)
     return assistant
 
 def create_data_base(file_paths_bucket, assistant_id):
@@ -216,7 +218,8 @@ def run_prompts_with_temp_thread(function, prompt_steps):
     if temp_thread is None:
         temp_thread = client.beta.threads.create()
         logger.info(f'Temp thread created with ID: {temp_thread.id}')
-    
+        temp_assistant = client.beta.assistants.retrieve("asst_h3h6ij4cDaoJj6F9zv0hOjSt")
+        '''
         temp_assistant = client.beta.assistants.create(
             name="Broker Assistant",
             instructions=(
@@ -231,6 +234,7 @@ def run_prompts_with_temp_thread(function, prompt_steps):
         logger.info(f"Temp assistant created with ID: {assistant.id}")
         file_paths_bucket = [os.path.join(base_dir, 'uploads', 'docs', filename) for filename in kb_files]
         create_data_base(file_paths_bucket, temp_assistant.id)
+        '''
     
     for i, step in enumerate(prompt_steps):
         logger.info(f"Running prompt step {i+1} of {function}")
