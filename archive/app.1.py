@@ -114,6 +114,36 @@ def run_prompts_with_temp_thread(function, prompt_steps):
         )
         
         handle_streaming_response(temp_stream, user_id, None, None)
+        '''
+        combined_message = ""
+        for chunk in temp_stream:
+            logger.info(f"OpenAI response chunk: {chunk}")
+
+            # Handle initial events
+            if chunk.event == 'thread.created':
+                logger.info(f"Thread created with ID: {chunk.data.id}")
+            elif chunk.event in ['thread.run.created', 'thread.run.queued', 'thread.run.in_progress', 'thread.run.step.created', 'thread.run.step.in_progress']:
+                logger.info(f"Event: {chunk.event}, Data: {chunk.data}")
+            elif chunk.event == 'thread.message.delta':
+                for block in chunk.data.delta.content:
+                    if block.type == 'text':
+                        content = block.text.value
+                        #logger.info(f"Captured content chunk: {content}")
+                        combined_message += content
+                        if user_id in streaming_responses:
+                            streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": True})
+                        else:
+                            streaming_responses[user_id] = [{"role": "assistant", "content": combined_message, "is_streaming": True}]
+            elif chunk.event == 'thread.message.completed':
+                logger.info(f"Message completed with content: {chunk.data.content}")
+                # Mark the end of message and indicate final message
+                if user_id in streaming_responses:
+                    streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": False})
+                else:
+                    streaming_responses[user_id] = [{"role": "assistant", "content": combined_message, "is_streaming": False}]
+            elif chunk.event == 'thread.run.completed':
+                logger.info("Thread run completed")
+        '''
 
 def soll_ist_analyze(broker_number, file_path):
     df = pd.read_excel(file_path, engine='openpyxl')
@@ -156,39 +186,33 @@ def target_analyze(file_path):
     
     prompt_steps = [
         f"""
-        Erstelle eine Übersicht der Zielerreichung für Account Manager Max Mustermann und seine Makler Accounts.
-        Gehe dabei schrittweise vor. Nenne die Schritte aber nicht in deiner Antwort.
+        Erstelle eine Übersicht der Zielerreichung für Account Manager {mock_user} entsprechend folgendem Musterbeispiel:
         
-        Schritt 1: Erstelle eine Auflistung für die Zielerreichung für Account Manager Max Mustermann für Zielart 1 Abteilungsziele und fasse das Ergebnis wie folgt zusammen:
-        Zielart 1 Abteilungsziele:
-         - Die Schadenquote liegt mit xx,xx% derzeit im Zielbereich (Zielgröße yy,yy %).
+        Abteilungsziele:
+        - Die Schadequote liegt mit 32,05% derzeit im Zielbereich (Zielgröße 50,00 %).
         
-        Schritt 2: Ignoriere deine vorerhigen Ergebnisse. Erstelle eine Auflistung für die Zielerreichung für Account Manager Max Mustermann für Zielart 2 Teamziele und fasse das Ergebnis wie folgt zusammen:
-        Zielart 2 Teamziele:
-        - Im Team wurde der Zielwert des Bestands i.H.v. y € noch nicht erreicht. Aktuell liegt der Bestand bei x €.
-        - Der Zielwert des Neu-/Mehrgeschäftes i.H.v. y € wurde bislang noch nicht erreicht und beträgt derzeit y €.
+        Teamziele:
+        - Im Team wurde der Zielwert des Bestands i.H.v. 142.000 € noch nicht erreicht. Aktuell liegt der Bestand bei 69.015€.
+        - Der Zielwert des Neu-/Mehrgeschäftes i.H.v. 164.798 € wurde bislang noch nicht erreicht und beträgt derzeit 75.256 €.
         
-        Schritt 3: Ignoriere deine vorerhigen Ergebnisse. Erstelle eine Auflistung der Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Bestandsziele innerhalb der Zielart 3 Persönliche Ziele erreichen und fasse das Ergebnis wie folgt zusammen:
-        Zielart 3 Persönliche Ziele:
-        Messgröße Bestandsziele:
-        - x von y Maklern konnten den Bestand (Privat + SMC) im Vergleich zum Vorjahr steigern.
-        - x von y Maklern konnten den Bestand (Firmen MC) im Vergleich zum Vorjahr steigern. 
-        - Ingesamt hat Dein Maklerportfolio ein Bestandsvolument von X TEUR, im VJ wurden X TEUR erreicht.
+        Persönliche Ziele
         
-        Schritt 4: Ignoriere deine vorerhigen Ergebnisse. Erstelle eine Auflistung der Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Neu-/Mehrgeschäftsziele innerhalb der Zielart 3 Persönliche Ziele erreichen und fasse das Ergebnis wie folgt zusammen:
-        Messgröße Neu-/Mehrgeschäftsziele:
-        - x von y Makern konnten das Neu/Mehrgeschäft (Privat + SMC) im Vergleich zum Vorjahr steigern.
-        - x von y Makern konnten das Neu/Mehrgeschäft (Firmen MC) im Vergleich zum Vorjahr steigern. 
-         - Ingesamt hat Dein Maklerportfolio ein Neu-/Mehrgeschäft von X TEUR, im VJ wurden X TEUR erreicht.
+        Bestandsziele:
+        - 2 von 5 Maklern konnten den Bestand (Privat + SMC) im Vergleich zum Vorjahr steigern. 
+        - 3 von 8 Maklern konnten den Bestand (Firmen MC) im Vergleich zum Vorjahr steigern.
+        Ingesamt hat Dein Maklerportfolio ein Bestandsvolument von X TEUR, im VJ wurden X TEUR erreicht.
         
-        Schritt 5: Ignoriere deine vorerhigen Ergebnisse. Erstelle eine Auflistung der Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele erreichen und fasse das Ergebnis wie folgt zusammen:
-        Messgröße Produktive Makler :
-        - x von y Maklern sind bereits produktiv.
+        Neu-/Mehrgeschäftsziele:
+        - 4 von 8 Makern konnten das Neu/Mehrgeschäft(Privat + SMC) im Vergleich zum Vorjahr steigern. 
+        - 4 von 8 Makern konnten das Neu/Mehrgeschäft(Firmen MC) im Vergleich zum Vorjahr steigern. 
+        Ingesamt hat Dein Maklerportfolio ein Neu-/Mehrgeschäft von X TEUR, im VJ wurden X TEUR erreicht.
         
-        Schritt 6: Biete weitere Unterstützung an.
+        Produktive Makler :
+        - 4 von 7 Maklern sind bereits produktiv.
+        
+        Wenn Du möchtest gebe ich Dir gerne eine Detailssicht zu Deinem Maklerportfolio und empfehle Maßnahmen, um Deine persönlichen Ziele effizient zu erreichen.
         """
         ]
-    print(prompt_steps)
     
     with app.app_context():
         return run_prompts_with_temp_thread("target_analyze", prompt_steps)
@@ -500,11 +524,12 @@ def handle_streaming_response(mystream, user_id, prompt, assistant_id):
     
             task_completed.clear()  # Reset task event
             analysis_result = {"status": "running"}
-    
+
             logger.info(f'Stream started for assistant ID: {assistant.id}')
+
         else:
             stream = mystream
-
+        
         combined_message = ""
         
         for chunk in stream:
