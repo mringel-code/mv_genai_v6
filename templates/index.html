@@ -179,7 +179,7 @@
             </div>
             <div class="chat-window">
                 <h2>Chat Window</h2>
-                <div id="loader">Ich arbeite an der Antwort. Bitte Geduld. Dies kann mehrere Minuten dauern...</div>
+                <div id="loader">Ich arbeite an der Antwort. Bitte Geduld.</div>
                 <div class="chat-messages" id="chatMessages"></div>
                 <div class="suggestions" id="suggestionsContainer">
                     <p>Suggested Questions:</p>
@@ -199,18 +199,6 @@
     <!-- Polyfill für fetch hinzufügen -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/whatwg-fetch/3.0.0/fetch.umd.js"></script>
     <script>
-        function fetchWithTimeout(resource, options) {
-            const { timeout = 8000 } = options;
-            const controller = new AbortController();
-            const id = setTimeout(() => controller.abort(), timeout);
-            const response = fetch(resource, {
-                ...options,
-                signal: controller.signal
-            });
-            clearTimeout(id);
-            return response;
-        }
-        
         function resetSession() {
             fetch('/reset_session')
                 .then(response => {
@@ -223,19 +211,41 @@
                 });
         }
 
-        function appendMessage(message, sender) {
+        function appendMessage(message, sender, streaming) {
             const messageClass = sender === 'user' ? 'user' : 'assistant';
+            const senderLabel = sender === 'user' ? 'You' : 'Assistant';
             const messageContainer = document.getElementById('chatMessages');
-            const formattedMessage = formatMessageContent(message, sender);
-            const messageElement = document.createElement('div');
-            messageElement.classList.add('chat-message', messageClass);
-            messageElement.innerHTML = `<strong>${sender === 'user' ? 'You' : 'Assistant'}:</strong> ${formattedMessage}`;
-            messageContainer.appendChild(messageElement);
+            let messageElement = document.getElementById('assistantMessage');
+
+            if (!streaming && messageElement) {
+                // If final message, remove id and finalize the element
+                messageElement.removeAttribute('id');
+                messageElement.innerHTML = `<strong>${senderLabel}:</strong> ${formatMessageContent(message)}`;
+            } else if (streaming) {
+                if (!messageElement) {
+                    // Create only if it does not exist
+                    messageElement = document.createElement('div');
+                    messageElement.classList.add('chat-message', messageClass);
+                    messageElement.id = 'assistantMessage';
+                    messageElement.innerHTML = `<strong>${senderLabel}:</strong> ${formatMessageContent(message)}`;
+                    messageContainer.appendChild(messageElement);
+                } else {
+                    // Update existing element
+                    messageElement.innerHTML = `<strong>${senderLabel}:</strong> ${formatMessageContent(message)}`;
+                }
+            } else {
+                // Add final message without streaming flag
+                messageElement = document.createElement('div');
+                messageElement.classList.add('chat-message', messageClass);
+                messageElement.innerHTML = `<strong>${senderLabel}:</strong> ${formatMessageContent(message)}`;
+                messageContainer.appendChild(messageElement);
+            }
+
             messageContainer.scrollTop = messageContainer.scrollHeight;
         }
 
         function formatMessageContent(content) {
-            return content;
+            return content.replace(/\n/g, '<br>');
         }
 
         function sendMessage(userInput = null) {
@@ -245,70 +255,45 @@
             const userMessage = userInput || userInputElement.value;
 
             if (userMessage) {
-                appendMessage(userMessage, 'user');
+                appendMessage(userMessage, 'user', false);
                 userInputElement.value = '';
                 sendButton.disabled = true;
                 loader.style.display = 'block';
 
-                fetchWithTimeout('/chat', {
+                fetch('/chat', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ user_input: userMessage }),
-                    timeout: 100000  // Setze ein Timeout von 30 Sekunden
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_input: userMessage })
                 })
                 .then(response => response.json())
                 .then(data => {
-                    if (data.error) {
-                        appendMessage(data.error, 'assistant');
+                    const eventSource = new EventSource('/stream/' + data.user_id);
+                    
+                    eventSource.onmessage = function(event) {
+                        const message = JSON.parse(event.data);
+                        const streaming = message.is_streaming === true;
+                        appendMessage(message.content, 'assistant', streaming);
+                        
+                        if (!streaming || message.content.startsWith("Error")) {
+                            loader.style.display = 'none';
+                            sendButton.disabled = false;
+                            eventSource.close();
+                        }
+                    };
+                    
+                    eventSource.onerror = function() {
                         loader.style.display = 'none';
                         sendButton.disabled = false;
-                    } else {
-                        if (data.status === 'running') {
-                            checkStatus(); // Starte die Statusüberprüfung
-                        } else {
-                            data.messages.forEach(message => appendMessage(message.content, 'assistant'));
-                            suggestFollowUpQuestions(data.suggestions);
-                            sendButton.disabled = false;
-                            loader.style.display = 'none';
-                        }
-                    }
+                        appendMessage('An error occurred. Please try again later.', 'assistant', false);
+                        eventSource.close();
+                    };
                 })
                 .catch(error => {
                     loader.style.display = 'none';
                     sendButton.disabled = false;
-                    appendMessage('An error occurred: ' + error.message, 'assistant');
+                    appendMessage('An error occurred: ' + error.message, 'assistant', false);
                 });
             }
-        }
-
-        function checkStatus() {
-            fetchWithTimeout('/check_status', {
-                method: 'GET',
-                timeout: 5000  // Setze ein Timeout von 5 Sekunden für den Statuscheck
-            })
-            .then(response => response.json())
-            .then(data => {
-                console.log("Status response from server:", data);  // Debug-Ausgabe
-                if (data.status === 'completed') {
-                    document.getElementById('loader').style.display = 'none';
-                    data.messages.forEach(message => appendMessage(message.content, 'assistant'));
-                    suggestFollowUpQuestions(data.suggestions);
-                    document.getElementById('sendButton').disabled = false;
-                } else if (data.status === 'running') {
-                    setTimeout(checkStatus, 5000); // Überprüfe erneut nach einer Verzögerung
-                } else if (data.error) {
-                    appendMessage(data.error, 'assistant');
-                    document.getElementById('loader').style.display = 'none';
-                    document.getElementById('sendButton').disabled = false;
-                }
-            })
-            .catch(error => {
-                document.getElementById('loader').style.display = 'none';
-                document.getElementById('sendButton').disabled = false;
-                appendMessage('An error occurred: ' + error.message, 'assistant');
-            });
         }
 
         function suggestFollowUpQuestions(questions) {

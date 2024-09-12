@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, session
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session, Response, stream_with_context, current_app
 from werkzeug.utils import secure_filename
 import os
 import openai
@@ -10,6 +10,7 @@ from botocore.exceptions import ClientError
 import threading
 from threading import Event
 import logging
+import time
 
 secret_name = "openai_api_key"
 region_name = "eu-central-1"
@@ -81,183 +82,38 @@ def format_message_content(content):
     content = content.replace('\n', '<br>')
     return content
 
-# OpenAI Assistant Configuration
-function_calling_tool = [
-    {
-        "type": "function",
-        "function": {
-            "name": "target_analyze",
-            "description": "Give an overview to the account manager on the status of achieving his targets (Zielerreichung)."
-            #"description": "Get the performance of the portfolio of brokers in terms of quantitative targets achieved on department level, team level and personal level of the account manager."
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "target_gap",
-            "description": "Make suggestions on how to reach the personal targets (persönliche Ziele) of the the account manager."
-            #"description": "Make suggestions on how to reach the personal targets (persönliche Ziele) of the the account manager by analyzing which parts of the portfolio to optimize given the correlation of targets."
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "team_analyze",
-            "description": "Get the current performance of the team and evaluate each member's statistics.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "TeamID": {
-                        "type": "string",
-                        "description": "The unique identifier of the team, e.g., TE12345"
-                    }
-                },
-                "required": ["TeamID"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "create_appointment_task",
-            "description": "searches a free Appointment time in the calender for a broker meeting (Maklergespräch).",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "brokerID": {
-                        "type": "string",
-                        "description": "The unique identifier of the broker, e.g., BR12345"
-                    }
-                },
-                "required": ["brokerID"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "productive_broker_analyze",
-            "description": "Get an overview of the brokers who can currently be labeled as productive according to target definition."
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "create_appointment",
-            "description": "Create an appointment for a broker meeting (Maklergespräch).",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "freeslot": {
-                        "type": "string",
-                        "description": "A time slot when the broker is available."
-                    }
-                },
-                "required": ["freeslot"]
-            }
-        }
-    }
-]
-
-file_search_tool = {
-    "type": "file_search"
-}
-
 assistant = None
-thread = None
 temp_assistant = None
-temp_thread = None
+user_id = None
+mock_user = "Max Mustermann"
 kb_files = ['Input_1_sales.pdf', 'Zieldefinition MV v2.pdf', 'Maklervertrieb Zahlen v0.4.docx']
 
-def create_assistant(client, function_calling_tool, file_search_tool):
+def initialize_assistant_for_session():
     global assistant
     assistant = client.beta.assistants.retrieve("asst_7Hx0vFUQZDlJd1aSRm8HjtjR")
-    '''
-    assistant = client.beta.assistants.create(
-        name="Broker Assistant",
-        instructions=(
-            "You are an expert performance advisor helping an account manager manage the performance of his insurance broker accounts. "
-            "Use your knowledge base to answer questions and refer to the sources from your knowledge base you used to answer the question in your response. "
-            "Give your answers in german."
-        ),
-        model="gpt-4o-mini",
-        temperature=0.1,
-        tools=[file_search_tool] + function_calling_tool
-    )
-    '''
     return assistant
-
-def initialize_assistant_for_session():
-    assistant = create_assistant(client, function_calling_tool, file_search_tool)
-    session['assistant_id'] = assistant.id
-    logger.info(f"Assistant retrieved with ID: {assistant.id}")
-    #file_paths_bucket = [os.path.join(base_dir, 'uploads', 'docs', filename) for filename in kb_files]
-    #create_data_base(file_paths_bucket, assistant.id)
-    return assistant
-
-def create_data_base(file_paths_bucket, assistant_id):
-    vector_store = client.beta.vector_stores.create(name="Broker Assistant")
-    
-    file_streams = [open(path, "rb") for path in file_paths_bucket]
-
-    file_batch = client.beta.vector_stores.file_batches.upload_and_poll(
-        vector_store_id=vector_store.id, files=file_streams
-    )
-    
-    client.beta.assistants.update(
-        assistant_id=assistant_id,
-        tool_resources={"file_search": {"vector_store_ids": [vector_store.id]}},
-    )
-    logger.info(f'File batch status: {file_batch.status}')
-    logger.info(f'File batch file count: {file_batch.file_counts}')
     
 def run_prompts_with_temp_thread(function, prompt_steps):
-    global temp_thread
-    global temp_assistant
-    
-    if temp_thread is None:
-        temp_thread = client.beta.threads.create()
-        logger.info(f'Temp thread created with ID: {temp_thread.id}')
+    with current_app.app_context():
+        global user_id
+        
         temp_assistant = client.beta.assistants.retrieve("asst_trlWRLh1q6z7OWMv2NWJI8OZ")
-        '''
-        temp_assistant = client.beta.assistants.create(
-            name="Broker Assistant",
-            instructions=(
-                "You are an expert performance advisor helping an account manager manage the performance of his insurance broker accounts. "
-                "Use your knowledge base to answer questions and refer to the sources from your knowledge base you used to answer the question in your response. "
-                "Give your answers in german."
-            ),
-            model="gpt-4o-mini",
-            temperature=0.1,
-            tools=[file_search_tool]
-        )
-        logger.info(f"Temp assistant created with ID: {assistant.id}")
-        file_paths_bucket = [os.path.join(base_dir, 'uploads', 'docs', filename) for filename in kb_files]
-        create_data_base(file_paths_bucket, temp_assistant.id)
-        '''
-    
-    for i, step in enumerate(prompt_steps):
-        logger.info(f"Running prompt step {i+1} of {function}")
         
-        temp_thread_message = client.beta.threads.messages.create(
-            temp_thread.id,
-            role="user",
-            content=step
+        for i, step in enumerate(prompt_steps):
+            temp_thread = client.beta.threads.create()
+            thread_message = client.beta.threads.messages.create(
+                thread_id=temp_thread.id,
+                role="user",
+                content=step,
+            )
+            
+        temp_stream = client.beta.threads.runs.create(
+            thread_id = temp_thread.id,
+            assistant_id=temp_assistant.id,
+            stream=True,
         )
         
-        temp_run = client.beta.threads.runs.create_and_poll(thread_id=temp_thread.id, assistant_id=temp_assistant.id)
-        logger.info(list(client.beta.threads.messages.list(thread_id=temp_thread.id)))
-        if temp_run.status != 'completed':
-            logger.info(f'Problem: {function} run step {i+1} not completed: {temp_run.status}')
-            with app.app_context():
-                return jsonify({"error": "An error occurred during the analysis"}), 500
-    
-    temp_messages = list(client.beta.threads.messages.list(thread_id=temp_thread.id))
-    response = temp_messages[0]
-    logger.info(f'{function} completed successfully')
-    
-    with app.app_context():
-        return response
+        handle_streaming_response(temp_stream, user_id, None, None)
 
 def soll_ist_analyze(broker_number, file_path):
     df = pd.read_excel(file_path, engine='openpyxl')
@@ -297,37 +153,35 @@ def soll_ist_analyze(broker_number, file_path):
 
 def target_analyze(file_path):
     logger.info('target_analyze function triggered')
-        
-    output_template_final = {
-            "Abteilungsziele:"
-            "\n- Die Schadequote liegt mit 32,05% derzeit im Zielbereich (Zielgröße 50,00 %)."
-            "\n\nTeamziele:"
-            "\n- Im Team wurde der Zielwert des Bestands i.H.v. 142.000 € noch nicht erreicht. Aktuell liegt der Bestand bei 69.015€.\n"
-            "\n- Der Zielwert des Neu-/Mehrgeschäftes i.H.v. 164.798 € wurde bislang noch nicht erreicht und beträgt derzeit 75.256 €."
-            "\nPersönliches Ziel:"
-            "\nBestandsziele:"
-            "\n- 2 von 5 Maklern konnten den Bestand (Privat + SMC) im Vergleich zum Vorjahr steigern.\n" 
-            "\n- 3 von 8 Maklern konnten den Bestand (Firmen MC) im Vergleich zum Vorjahr steigern.\n"
-            "\nIngesamt hat Dein Maklerportfolio ein Bestandsvolument von X TEUR, im VJ wurden X TEUR erreicht.\n\n"
-            "\nPersönliches Ziel:"
-            "\nNeu-/Mehrgeschäftsziele:"
-            "\n- 4 von 8 Makern konnten das Neu/Mehrgeschäft(Privat + SMC) im Vergleich zum Vorjahr steigern. "
-            "\n- 4 von 8 Makern konnten das Neu/Mehrgeschäft(Firmen MC) im Vergleich zum Vorjahr steigern. "
-            "\nIngesamt hat Dein Maklerportfolio ein Neu-/Mehrgeschäft von X TEUR, im VJ wurden X TEUR erreicht."
-            "\nPersönliches Ziel:"
-            "\nProduktive Makler:"
-            "\n- 4 von 7 Maklern sind bereits produktiv."
-            "\n\nWenn Du möchtest gebe ich Dir gerne eine Detailssicht zu Deinem Maklerportfolio und empfehle Maßnahmen, um Deine persönlichen Ziele effizient zu erreichen. "
-        }
-    
-    result1 = get_abteilungsziele()
-    result2 = get_teamziele()
-    result3 = get_bestandsziele()
-    result4 = get_neugeschaeftsziele()
-    result5 = get_produktive_makler()
     
     prompt_steps = [
-            f'Hier sind einzelne Teilergebnisse: \nAbteilungsziele: {result1} \nTeamziele: {result2} \nBestandsziele: {result3} \nNeu-/Mehrgeschäftsziele: {result4} \nnProduktive Makler: {result5} \n\nFasse die Ergebnisse entsprechend folgendem Beispiel zusammen: {output_template_final}'
+        f"""
+        Erstelle eine Übersicht der Zielerreichung für {mock_user} Max Mustermann entsprechend folgendem Musterbeispiel:
+
+        Abteilungsziele:
+        - Die Schadequote liegt mit 32,05% derzeit im Zielbereich (Zielgröße 50,00 %).
+        
+        Teamziele :
+        - Im Team wurde der Zielwert des Bestands i.H.v. 142.000 € noch nicht erreicht. Aktuell liegt der Bestand bei 69.015€.
+        - Der Zielwert des Neu-/Mehrgeschäftes i.H.v. 164.798 € wurde bislang noch nicht erreicht und beträgt derzeit 75.256 €.
+        
+        Persönliche Ziele
+        
+        Bestandsziele:
+        - 2 von 5 Maklern konnten den Bestand (Privat + SMC) im Vergleich zum Vorjahr steigern. 
+        - 3 von 8 Maklern konnten den Bestand (Firmen MC) im Vergleich zum Vorjahr steigern.
+        Ingesamt hat Dein Maklerportfolio ein Bestandsvolument von X TEUR, im VJ wurden X TEUR erreicht.
+        
+        Neu-/Mehrgeschäftsziele:
+        - 4 von 8 Makern konnten das Neu/Mehrgeschäft(Privat + SMC) im Vergleich zum Vorjahr steigern. 
+        - 4 von 8 Makern konnten das Neu/Mehrgeschäft(Firmen MC) im Vergleich zum Vorjahr steigern. 
+        Ingesamt hat Dein Maklerportfolio ein Neu-/Mehrgeschäft von X TEUR, im VJ wurden X TEUR erreicht.
+        
+        Produktive Makler :
+        - 4 von 7 Maklern sind bereits produktiv.
+        
+        Wenn Du möchtest gebe ich Dir gerne eine Detailssicht zu Deinem Maklerportfolio und empfehle Maßnahmen, um Deine persönlichen Ziele effizient zu erreichen. 
+        """
         ]
     
     with app.app_context():
@@ -371,7 +225,7 @@ def get_produktive_makler():
         ]
     
     with app.app_context():
-        return run_prompts_with_temp_thread("get_produktive_makler", prompt_steps)
+        return run_prompts_with_temp_thread("productive_broker_analyze", prompt_steps)
         
 def target_gap(file_path):
     logger.info('target_gap function triggered')
@@ -409,6 +263,7 @@ def target_gap(file_path):
         return run_prompts_with_temp_thread("target_analyze", prompt_steps)
 
 def team_analyze():
+    logger.info('team_analyze function triggered')
     return 'Max Mustermann hat eine Performance = 65%, Dieter Hans hat eine Performance = 82%, Ulrich Mark hat eine Performance = 85% '
 
 def create_appointment_task():
@@ -420,35 +275,32 @@ def create_appointment():
     
 def productive_broker_analyze(path):
     logger.info('productive_broker_analyze function triggered')
-    
-    output_template = {
-            "Im Folgenden findest Du eine Auflistung deiner produktiven Makler:"
-            "\n\nMakler A Strukturnummer 1:"
-            "\n- Bestand gesamt Ist: 9.000€, Bestand Gesamt Vorjahr: 10.000€; Teilkriterium Bestand Ist > Bestand Vorjahr: nicht erfüllt"
-            "\n- Neu-/Mehrgeschäft Ist: 1.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): nicht erfüllt"
-            "\n- Produktiv Ja/Nein: Nein"
-            "\n\nMakler B Strukturnummer 2:"
-            "\n- Bestand gesamt Ist: 100.000€, Bestand Gesamt Vorjahr: 90.000€; Teilkriterium Bestand Ist > Bestand Vorjahr: erfüllt"
-            "\n- Neu-/Mehrgeschäft Ist: 50.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): erfüllt"
-            "\n- Produktiv Ja/Nein: Ja"
-            "\n\nMakler C Strukturnummer 3:"
-            "\n- Bestand gesamt Ist: 100.000€, Bestand Gesamt Vorjahr: 110.000€; Teilkriterium Bestand Ist > Bestand Vorjahr: nicht erfüllt"
-            "\n- Neu-/Mehrgeschäft Ist: 50.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): erfüllt"
-            "\n- Produktiv Ja/Nein: Nein"
-            "\n\nMakler D Strukturnummer 4:"
-            "\n- Bestand gesamt Ist: 100.000€, Bestand Gesamt Vorjahr: 90.000€; Teilkriterium Bestand Ist > Bestand Vorjahr: erfüllt"
-            "\n- Neu-/Mehrgeschäft Ist: 20.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): nicht erfüllt"
-            "\n- Produktiv Ja/Nein: Nein"
-            "\n\nMakler E Strukturnummer 5:"
-            "\n- Bestand gesamt Ist: 100.000€, Bestand Gesamt Vorjahr: 90.000€; Teilkriterium Bestand Ist > Bestand Vorjahr: erfüllt"
-            "\n- Neu-/Mehrgeschäft Ist: 25.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): erfüllt"
-            "\n- Produktiv Ja/Nein: Ja"
-        }
-    
-    result = get_produktive_makler()
-
     prompt_steps = [
-            f'Hier ist eine Auflistung der produktiven Makler: {result} \nFasse die Ergebnisse entsprechend folgendem Beispiel zusammen: {output_template}'
+        f"""
+        Erstelle eine Auflistung der Makler von Account Manager {mock_user}, die die Zielvorgaben für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele erreichen! Erstelle die Auflistung entsprechend folgenden Musterbeispiel:
+        
+        Im Folgenden findest Du eine Auflistung deiner produktiven Makler:
+        Makler A Strukturnummer 1:
+        - Bestand gesamt Ist: 9.000€, Bestand Gesamt Vorjahr: 10.000€; Teilkriterium Bestand Ist > Bestand Vorjahr: nicht erfüllt
+        - Neu-/Mehrgeschäft Ist: 1.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): nicht erfüllt
+        - Produktiv Ja/Nein: Nein
+        Makler B Strukturnummer 2:
+        - Bestand gesamt Ist: 100.000€, Bestand Gesamt Vorjahr: 90.000€; Teilkriterium Bestand Ist > Bestand Vorjahr: erfüllt
+        - Neu-/Mehrgeschäft Ist: 50.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): erfüllt
+        - Produktiv Ja/Nein: Ja
+        Makler C Strukturnummer 3:
+        - Bestand gesamt Ist: 100.000€, Bestand Gesamt Vorjahr: 110.000€; Teilkriterium Bestand Ist > Bestand Vorjahr: nicht erfüllt
+        - Neu-/Mehrgeschäft Ist: 50.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): erfüllt
+        - Produktiv Ja/Nein: Nein
+        Makler D Strukturnummer 4:
+        - Bestand gesamt Ist: 100.000€, Bestand Gesamt Vorjahr: 90.000€; Teilkriterium Bestand Ist > Bestand Vorjahr: erfüllt
+        - Neu-/Mehrgeschäft Ist: 20.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): nicht erfüllt
+        - Produktiv Ja/Nein: Nein
+        nMakler E Strukturnummer 5:
+        - Bestand gesamt Ist: 100.000€, Bestand Gesamt Vorjahr: 90.000€; Teilkriterium Bestand Ist > Bestand Vorjahr: erfüllt
+        - Neu-/Mehrgeschäft Ist: 25.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): erfüllt
+        - Produktiv Ja/Nein: Ja
+        """
         ]
     
     with app.app_context():
@@ -460,6 +312,7 @@ def create_output(run, tool_calls, path, thread):
     for tool in tool_calls:
         if tool.function.name == "team_analyze":
             result = team_analyze()
+            logger.info('providing team_analyze function results')
             tool_outputs.append({
                 "tool_call_id": tool.id,
                 "output": f'Aktuelle Team Performancedaten: {result}'
@@ -497,12 +350,14 @@ def create_output(run, tool_calls, path, thread):
 
     if tool_outputs:
         try:
-            run = client.beta.threads.runs.submit_tool_outputs_and_poll(
+            run = client.beta.threads.runs.submit_tool_outputs(
                 thread_id=thread.id,
                 run_id=run.id,
-                tool_outputs=tool_outputs
+                tool_outputs=tool_outputs,
+                stream=True,
             )
             logger.info('Tool outputs submitted successfully.')
+            return run
         except Exception as e:
             logger.info(f'Failed to submit tool outputs: {e}')
     else:
@@ -573,7 +428,9 @@ def process_message(message):
 def home():
     if 'assistant_id' not in session:
         assistant = initialize_assistant_for_session()
+        session['assistant_id'] = assistant.id
     else:
+        assistant_id = session['assistant_id']
         assistant = client.beta.assistants.retrieve(session['assistant_id'])
     
     if request.method == 'POST' and 'document' in request.files:
@@ -608,87 +465,126 @@ def reset_session():
     temp_thread = None
     session.clear()
     return redirect(url_for('home'))
+    
+# In-memory store for messages (simple implementation)
+streaming_responses = {}
+
+# Function to handle streaming responses from OpenAI
+def handle_streaming_response(mystream, user_id, prompt, assistant_id):
+    global analysis_result
+    global thread
+
+    try:
+        if mystream is None:
+            assistant = client.beta.assistants.retrieve(assistant_id)
+            thread = client.beta.threads.create()
+            thread_message = client.beta.threads.messages.create(
+                thread_id=thread.id,
+                role="user",
+                content=prompt,
+            )
+    
+            stream = client.beta.threads.runs.create(
+                thread_id=thread.id,
+                assistant_id=assistant.id,
+                stream=True,
+            )
+    
+            path = os.path.join(base_dir, 'uploads', 'docs', 'maklervertrieb_zahlen_v0.3.xlsx')
+    
+            task_completed.clear()  # Reset task event
+            analysis_result = {"status": "running"}
+    
+            logger.info(f'Stream started for assistant ID: {assistant.id}')
+        else:
+            stream = mystream
+
+        combined_message = ""
+        
+        for chunk in stream:
+            logger.info(f"OpenAI response chunk: {chunk}")
+
+            # Handle initial events
+            if chunk.event == 'thread.created':
+                logger.info(f"Thread created with ID: {chunk.data.id}")
+            elif chunk.event in ['thread.run.created', 'thread.run.queued', 'thread.run.in_progress', 'thread.run.step.created', 'thread.run.step.in_progress']:
+                logger.info(f"Event: {chunk.event}, Data: {chunk.data}")
+            elif chunk.event == 'thread.message.delta':
+                for block in chunk.data.delta.content:
+                    if block.type == 'text':
+                        content = block.text.value
+                        #logger.info(f"Captured content chunk: {content}")
+                        combined_message += content
+                        if user_id in streaming_responses:
+                            streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": True})
+                        else:
+                            streaming_responses[user_id] = [{"role": "assistant", "content": combined_message, "is_streaming": True}]
+            elif chunk.event == 'thread.message.completed':
+                logger.info(f"Message completed with content: {chunk.data.content}")
+                # Mark the end of message and indicate final message
+                if user_id in streaming_responses:
+                    streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": False})
+                else:
+                    streaming_responses[user_id] = [{"role": "assistant", "content": combined_message, "is_streaming": False}]
+            elif chunk.event == 'thread.run.requires_action':
+                # Handle required tool calls
+                tool_calls = chunk.data.required_action.submit_tool_outputs.tool_calls
+                mystream = create_output(chunk.data, tool_calls, path, thread)
+                handle_streaming_response(mystream, user_id, None, None)
+                if user_id in streaming_responses:
+                    streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": False})
+                else:
+                    streaming_responses[user_id] = [{"role": "assistant", "content": combined_message, "is_streaming": False}]
+                logger.info("Tool outputs created")
+            elif chunk.event == 'thread.run.completed':
+                logger.info("Thread run completed")
+
+        suggestions = generate_follow_up_questions(prompt)
+        analysis_result['messages'] = combined_message
+        analysis_result['suggestions'] = suggestions
+        logger.info("Task completed successfully")
+
+        task_completed.set()
+
+    except Exception as e:
+        logger.error(f"Error during OpenAI streaming: {str(e)}", exc_info=True)
+        if user_id in streaming_responses:
+            streaming_responses[user_id].append({"role": "assistant", "content": f"Error: {str(e)}"})
+        else:
+            streaming_responses[user_id] = [{"role": "assistant", "content": f"Error: {str(e)}"}]
 
 @app.route('/chat', methods=['POST'])
 def chat():
-    global thread
-    global analysis_result
-
-    content_user_input = request.json.get('user_input')
-    logger.info(f"Received user input: {content_user_input}")
+    global user_id
+    user_input = request.json.get('user_input')
+    logger.info(f"Received user input: {user_input}")
+    user_id = str(request.remote_addr)  # Using the client's IP as a simple user identifier
     
-    if 'assistant_id' not in session:
-        assistant = initialize_assistant_for_session()
-    else:
-        assistant = client.beta.assistants.retrieve(session['assistant_id'])
+    assistant = client.beta.assistants.retrieve("asst_7Hx0vFUQZDlJd1aSRm8HjtjR")
+    assistant_id = assistant.id
+    session['assistant_id'] = assistant_id
     
-    if thread is None:
-        thread = create_thread(content_user_input)
-        logger.info(f'User thread created with ID: {thread.id}')
-    else: #only create message in thread if there is already a thread
-        thread_message = client.beta.threads.messages.create(
-            thread.id,
-            role="user",
-            content=content_user_input,
-        )
+    # Initialize the user's response collection
+    streaming_responses[user_id] = []
     
-    path = os.path.join(base_dir, 'uploads', 'docs', 'maklervertrieb_zahlen_v0.3.xlsx')
-    
-    task_completed.clear()  # Reset task event
-    analysis_result = {"status": "running"}
-
-    def analyze_task():
-        global analysis_result
-        try:
-            logger.info("Starting long running task")
-            run = client.beta.threads.runs.create_and_poll(thread_id=thread.id, assistant_id=assistant.id)
-            logger.info(f'Run created: {run.id}')
-            
-            if run.status in ['completed', 'requires_action']:
-                if run.status == 'requires_action':
-                    tool_calls = run.required_action.submit_tool_outputs.tool_calls
-                    create_output(run, tool_calls, path, thread)
-                    logger.info("Tool outputs created")
-    
-                messages = list(client.beta.threads.messages.list(thread_id=thread.id))
-                logger.info(f'Messages retrieved: {len(messages)}')
-                logger.info(f'Messages: {messages}')
-                
-                response = process_message(messages[0])
-                last_message = messages[-1].content if messages else ""
-    
-                if isinstance(last_message, list):
-                    last_message_text = " ".join(extract_and_format_content(item) for item in last_message)
-                else:
-                    last_message_text = extract_and_format_content(last_message)
-                
-                suggestions = generate_follow_up_questions(last_message_text)
-                analysis_result['messages'] = response
-                analysis_result['suggestions'] = suggestions
-                logger.info("Task completed successfully")
-            
-            task_completed.set()
-        except Exception as e:
-            analysis_result['error'] = str(e)
-            logger.error("An error occurred during the analysis task", exc_info=True)
-            
-        finally:
-            task_completed.set()  # Setze das Event, unabhängig vom Ergebnis der Aufgabe
-    
+    # Start the streaming response in a separate thread
     logger.info("Starting background task")
-    threading.Thread(target=analyze_task).start()
-    #return jsonify({"status": "running"})
-    '''
-    task_success = task_completed.wait(timeout=300)
-
-    if not task_success:
-        return "Task is still running. Please check back later.", 202
-
-    if 'error' in analysis_result:
-        return f"An error occurred: {analysis_result['error']}", 500
-    '''
-    return jsonify(analysis_result)
+    threading.Thread(target=handle_streaming_response, args=(None, user_id, user_input, assistant_id)).start()
     
+    return jsonify({"status": "streaming", "user_id": user_id})
+
+@app.route('/stream/<user_id>')
+def stream(user_id):
+    def message_generator():
+        while True:
+            if user_id in streaming_responses and streaming_responses[user_id]:
+                message = streaming_responses[user_id].pop(0)
+                yield f"data: {json.dumps(message)}\n\n"
+                if not message.get('is_streaming', True):
+                    break
+            #time.sleep(0.1)  # Reducing sleep to improve responsiveness
+
+    return Response(stream_with_context(message_generator()), content_type='text/event-stream')
 
 if __name__ == '__main__':
     logger.info('Main executed')
