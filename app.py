@@ -98,6 +98,7 @@ def run_prompts_with_temp_thread(function, prompt_steps):
         global user_id
         
         temp_assistant = client.beta.assistants.retrieve("asst_trlWRLh1q6z7OWMv2NWJI8OZ")
+        multiple = True
         
         for i, step in enumerate(prompt_steps):
             temp_thread = client.beta.threads.create()
@@ -107,13 +108,15 @@ def run_prompts_with_temp_thread(function, prompt_steps):
                 content=step,
             )
             
-        temp_stream = client.beta.threads.runs.create(
-            thread_id = temp_thread.id,
-            assistant_id=temp_assistant.id,
-            stream=True,
-        )
-        
-        handle_streaming_response(temp_stream, user_id, None, None)
+            temp_stream = client.beta.threads.runs.create(
+                thread_id = temp_thread.id,
+                assistant_id=temp_assistant.id,
+                stream=True,
+            )
+            
+            if i==len(prompt_steps): 
+                    multiple = None
+            handle_streaming_response(temp_stream, user_id, None, None, multiple)
 
 def soll_ist_analyze(broker_number, file_path):
     df = pd.read_excel(file_path, engine='openpyxl')
@@ -155,37 +158,36 @@ def target_analyze(file_path):
     logger.info('target_analyze function triggered')
     
     prompt_steps = [
-        f"""
-        Erstelle eine Übersicht der Zielerreichung für Account Manager Max Mustermann und seine Makler Accounts.
-        Gehe dabei schrittweise vor. Nenne die Schritte aber nicht in deiner Antwort.
-        
-        Schritt 1: Erstelle eine Auflistung für die Zielerreichung für Account Manager Max Mustermann für Zielart 1 Abteilungsziele und fasse das Ergebnis wie folgt zusammen:
+        """
+        Ermittle die Zielerreichung für Account Manager Max Mustermann für Zielart 1 Abteilungsziele. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
         Zielart 1 Abteilungsziele:
          - Die Schadenquote liegt mit xx,xx% derzeit im Zielbereich (Zielgröße yy,yy %).
-        
-        Schritt 2: Ignoriere deine vorerhigen Ergebnisse. Erstelle eine Auflistung für die Zielerreichung für Account Manager Max Mustermann für Zielart 2 Teamziele und fasse das Ergebnis wie folgt zusammen:
+        """,
+        """
+        Ermittle die Zielerreichung für Account Manager Max Mustermann für Zielart 2 Teamziele. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
         Zielart 2 Teamziele:
         - Im Team wurde der Zielwert des Bestands i.H.v. y € noch nicht erreicht. Aktuell liegt der Bestand bei x €.
         - Der Zielwert des Neu-/Mehrgeschäftes i.H.v. y € wurde bislang noch nicht erreicht und beträgt derzeit y €.
-        
-        Schritt 3: Ignoriere deine vorerhigen Ergebnisse. Erstelle eine Auflistung der Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Bestandsziele innerhalb der Zielart 3 Persönliche Ziele erreichen und fasse das Ergebnis wie folgt zusammen:
+        """,
+        """,
+        Ermittle die Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Bestandsziele innerhalb der Zielart 3 Persönliche Ziele erreichen. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
         Zielart 3 Persönliche Ziele:
         Messgröße Bestandsziele:
         - x von y Maklern konnten den Bestand (Privat + SMC) im Vergleich zum Vorjahr steigern.
         - x von y Maklern konnten den Bestand (Firmen MC) im Vergleich zum Vorjahr steigern. 
         - Ingesamt hat Dein Maklerportfolio ein Bestandsvolument von X TEUR, im VJ wurden X TEUR erreicht.
-        
-        Schritt 4: Ignoriere deine vorerhigen Ergebnisse. Erstelle eine Auflistung der Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Neu-/Mehrgeschäftsziele innerhalb der Zielart 3 Persönliche Ziele erreichen und fasse das Ergebnis wie folgt zusammen:
+        """,
+        """
+        Ermittle die Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Neu-/Mehrgeschäftsziele innerhalb der Zielart 3 Persönliche Ziele erreichen. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
         Messgröße Neu-/Mehrgeschäftsziele:
         - x von y Makern konnten das Neu/Mehrgeschäft (Privat + SMC) im Vergleich zum Vorjahr steigern.
         - x von y Makern konnten das Neu/Mehrgeschäft (Firmen MC) im Vergleich zum Vorjahr steigern. 
          - Ingesamt hat Dein Maklerportfolio ein Neu-/Mehrgeschäft von X TEUR, im VJ wurden X TEUR erreicht.
-        
-        Schritt 5: Ignoriere deine vorerhigen Ergebnisse. Erstelle eine Auflistung der Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele erreichen und fasse das Ergebnis wie folgt zusammen:
-        Messgröße Produktive Makler :
+        """,
+        """
+        Ermittle die Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele erreichen. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
+        Messgröße Produktive Makler:
         - x von y Maklern sind bereits produktiv.
-        
-        Schritt 6: Biete weitere Unterstützung an.
         """
         ]
     print(prompt_steps)
@@ -474,11 +476,13 @@ def reset_session():
     
 # In-memory store for messages (simple implementation)
 streaming_responses = {}
+combined_message = ""
 
 # Function to handle streaming responses from OpenAI
-def handle_streaming_response(mystream, user_id, prompt, assistant_id):
+def handle_streaming_response(mystream, user_id, prompt, assistant_id, multiple):
     global analysis_result
     global thread
+    global combined_message
 
     try:
         if mystream is None:
@@ -504,8 +508,9 @@ def handle_streaming_response(mystream, user_id, prompt, assistant_id):
             logger.info(f'Stream started for assistant ID: {assistant.id}')
         else:
             stream = mystream
-
-        combined_message = ""
+        
+        if multiple is None:
+            combined_message = ""
         
         for chunk in stream:
             logger.info(f"OpenAI response chunk: {chunk}")
@@ -529,14 +534,16 @@ def handle_streaming_response(mystream, user_id, prompt, assistant_id):
                 logger.info(f"Message completed with content: {chunk.data.content}")
                 # Mark the end of message and indicate final message
                 if user_id in streaming_responses:
-                    streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": False})
+                    if multiple is None:
+                        streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": False})
+                    else:
+                        combined_message += "\n\n"
                 else:
                     streaming_responses[user_id] = [{"role": "assistant", "content": combined_message, "is_streaming": False}]
             elif chunk.event == 'thread.run.requires_action':
                 # Handle required tool calls
                 tool_calls = chunk.data.required_action.submit_tool_outputs.tool_calls
-                mystream = create_output(chunk.data, tool_calls, path, thread)
-                handle_streaming_response(mystream, user_id, None, None)
+                create_output(chunk.data, tool_calls, path, thread)
                 if user_id in streaming_responses:
                     streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": False})
                 else:
@@ -575,7 +582,7 @@ def chat():
     
     # Start the streaming response in a separate thread
     logger.info("Starting background task")
-    threading.Thread(target=handle_streaming_response, args=(None, user_id, user_input, assistant_id)).start()
+    threading.Thread(target=handle_streaming_response, args=(None, user_id, user_input, assistant_id, None)).start()
     
     return jsonify({"status": "streaming", "user_id": user_id})
 
