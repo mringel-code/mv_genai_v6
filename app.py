@@ -290,11 +290,11 @@ def productive_broker_analyze(path):
         Makler A Strukturnummer 1:
         - Bestand gesamt Ist: x€, Bestand Gesamt Vorjahr: y€; Teilkriterium Bestand Ist > Bestand Vorjahr: nicht erfüllt
         - Neu-/Mehrgeschäft Ist: x€ Teilkriterium Neu-/Mehrgeschäft i.H.v. y%  des Bestandes (min. aber z €): nicht erfüllt
-        - Produktiv Ja/Nein: Nein
+        - Produktiv Ja/Nein: [Wert]
         Makler B Strukturnummer 2:
         - Bestand gesamt Ist: x €, Bestand Gesamt Vorjahr:y€; Teilkriterium Bestand Ist > Bestand Vorjahr: erfüllt
         - Neu-/Mehrgeschäft Ist: x € Teilkriterium Neu-/Mehrgeschäft i.H.v. y %  des Bestandes (min. aber z €): erfüllt
-         - Produktiv Ja/Nein: Ja
+         - Produktiv Ja/Nein: [Wert]
         ...
         """
         ]
