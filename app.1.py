@@ -98,6 +98,7 @@ def run_prompts_with_temp_thread(function, prompt_steps):
         global user_id
         
         temp_assistant = client.beta.assistants.retrieve("asst_trlWRLh1q6z7OWMv2NWJI8OZ")
+        multiple = True
         
         for i, step in enumerate(prompt_steps):
             temp_thread = client.beta.threads.create()
@@ -107,43 +108,15 @@ def run_prompts_with_temp_thread(function, prompt_steps):
                 content=step,
             )
             
-        temp_stream = client.beta.threads.runs.create(
-            thread_id = temp_thread.id,
-            assistant_id=temp_assistant.id,
-            stream=True,
-        )
-        
-        handle_streaming_response(temp_stream, user_id, None, None)
-        '''
-        combined_message = ""
-        for chunk in temp_stream:
-            logger.info(f"OpenAI response chunk: {chunk}")
-
-            # Handle initial events
-            if chunk.event == 'thread.created':
-                logger.info(f"Thread created with ID: {chunk.data.id}")
-            elif chunk.event in ['thread.run.created', 'thread.run.queued', 'thread.run.in_progress', 'thread.run.step.created', 'thread.run.step.in_progress']:
-                logger.info(f"Event: {chunk.event}, Data: {chunk.data}")
-            elif chunk.event == 'thread.message.delta':
-                for block in chunk.data.delta.content:
-                    if block.type == 'text':
-                        content = block.text.value
-                        #logger.info(f"Captured content chunk: {content}")
-                        combined_message += content
-                        if user_id in streaming_responses:
-                            streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": True})
-                        else:
-                            streaming_responses[user_id] = [{"role": "assistant", "content": combined_message, "is_streaming": True}]
-            elif chunk.event == 'thread.message.completed':
-                logger.info(f"Message completed with content: {chunk.data.content}")
-                # Mark the end of message and indicate final message
-                if user_id in streaming_responses:
-                    streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": False})
-                else:
-                    streaming_responses[user_id] = [{"role": "assistant", "content": combined_message, "is_streaming": False}]
-            elif chunk.event == 'thread.run.completed':
-                logger.info("Thread run completed")
-        '''
+            temp_stream = client.beta.threads.runs.create(
+                thread_id = temp_thread.id,
+                assistant_id=temp_assistant.id,
+                stream=True,
+            )
+            
+            if i==len(prompt_steps): 
+                    multiple = None
+            handle_streaming_response(temp_stream, user_id, None, None, multiple)
 
 def soll_ist_analyze(broker_number, file_path):
     df = pd.read_excel(file_path, engine='openpyxl')
@@ -185,34 +158,39 @@ def target_analyze(file_path):
     logger.info('target_analyze function triggered')
     
     prompt_steps = [
-        f"""
-        Erstelle eine Übersicht der Zielerreichung für Account Manager {mock_user} entsprechend folgendem Musterbeispiel:
-        
-        Abteilungsziele:
-        - Die Schadequote liegt mit 32,05% derzeit im Zielbereich (Zielgröße 50,00 %).
-        
-        Teamziele:
-        - Im Team wurde der Zielwert des Bestands i.H.v. 142.000 € noch nicht erreicht. Aktuell liegt der Bestand bei 69.015€.
-        - Der Zielwert des Neu-/Mehrgeschäftes i.H.v. 164.798 € wurde bislang noch nicht erreicht und beträgt derzeit 75.256 €.
-        
-        Persönliche Ziele
-        
-        Bestandsziele:
-        - 2 von 5 Maklern konnten den Bestand (Privat + SMC) im Vergleich zum Vorjahr steigern. 
-        - 3 von 8 Maklern konnten den Bestand (Firmen MC) im Vergleich zum Vorjahr steigern.
-        Ingesamt hat Dein Maklerportfolio ein Bestandsvolument von X TEUR, im VJ wurden X TEUR erreicht.
-        
-        Neu-/Mehrgeschäftsziele:
-        - 4 von 8 Makern konnten das Neu/Mehrgeschäft(Privat + SMC) im Vergleich zum Vorjahr steigern. 
-        - 4 von 8 Makern konnten das Neu/Mehrgeschäft(Firmen MC) im Vergleich zum Vorjahr steigern. 
-        Ingesamt hat Dein Maklerportfolio ein Neu-/Mehrgeschäft von X TEUR, im VJ wurden X TEUR erreicht.
-        
-        Produktive Makler :
-        - 4 von 7 Maklern sind bereits produktiv.
-        
-        Wenn Du möchtest gebe ich Dir gerne eine Detailssicht zu Deinem Maklerportfolio und empfehle Maßnahmen, um Deine persönlichen Ziele effizient zu erreichen.
+        """
+        Ermittle die Zielerreichung für Account Manager Max Mustermann für Zielart 1 Abteilungsziele. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
+        Zielart 1 Abteilungsziele:
+         - Die Schadenquote liegt mit xx,xx% derzeit im Zielbereich (Zielgröße yy,yy %).
+        """,
+        """
+        Ermittle die Zielerreichung für Account Manager Max Mustermann für Zielart 2 Teamziele. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
+        Zielart 2 Teamziele:
+        - Im Team wurde der Zielwert des Bestands i.H.v. y € noch nicht erreicht. Aktuell liegt der Bestand bei x €.
+        - Der Zielwert des Neu-/Mehrgeschäftes i.H.v. y € wurde bislang noch nicht erreicht und beträgt derzeit y €.
+        """,
+        """,
+        Ermittle die Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Bestandsziele innerhalb der Zielart 3 Persönliche Ziele erreichen. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
+        Zielart 3 Persönliche Ziele:
+        Messgröße Bestandsziele:
+        - x von y Maklern konnten den Bestand (Privat + SMC) im Vergleich zum Vorjahr steigern.
+        - x von y Maklern konnten den Bestand (Firmen MC) im Vergleich zum Vorjahr steigern. 
+        - Ingesamt hat Dein Maklerportfolio ein Bestandsvolument von X TEUR, im VJ wurden X TEUR erreicht.
+        """,
+        """
+        Ermittle die Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Neu-/Mehrgeschäftsziele innerhalb der Zielart 3 Persönliche Ziele erreichen. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
+        Messgröße Neu-/Mehrgeschäftsziele:
+        - x von y Makern konnten das Neu/Mehrgeschäft (Privat + SMC) im Vergleich zum Vorjahr steigern.
+        - x von y Makern konnten das Neu/Mehrgeschäft (Firmen MC) im Vergleich zum Vorjahr steigern. 
+         - Ingesamt hat Dein Maklerportfolio ein Neu-/Mehrgeschäft von X TEUR, im VJ wurden X TEUR erreicht.
+        """,
+        """
+        Ermittle die Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele erreichen. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
+        Messgröße Produktive Makler:
+        - x von y Maklern sind bereits produktiv.
         """
         ]
+    print(prompt_steps)
     
     with app.app_context():
         return run_prompts_with_temp_thread("target_analyze", prompt_steps)
@@ -306,30 +284,18 @@ def create_appointment():
 def productive_broker_analyze(path):
     logger.info('productive_broker_analyze function triggered')
     prompt_steps = [
-        f"""
-        Erstelle eine Auflistung der Makler von Account Manager {mock_user}, die die Zielvorgaben für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele erreichen! Erstelle die Auflistung entsprechend folgenden Musterbeispiel:
-        
+        """
+        Ermittle die Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele erreichen. Entnimm die Einteilung "produktiv ja/nein" direkt der korrespondierenden Tabelle und Spalte in Maklervertrieb Zahlen. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
         Im Folgenden findest Du eine Auflistung deiner produktiven Makler:
         Makler A Strukturnummer 1:
-        - Bestand gesamt Ist: 9.000€, Bestand Gesamt Vorjahr: 10.000€; Teilkriterium Bestand Ist > Bestand Vorjahr: nicht erfüllt
-        - Neu-/Mehrgeschäft Ist: 1.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): nicht erfüllt
-        - Produktiv Ja/Nein: Nein
+        - Bestand gesamt Ist: x€, Bestand Gesamt Vorjahr: y€; Teilkriterium Bestand Ist > Bestand Vorjahr: nicht erfüllt
+        - Neu-/Mehrgeschäft Ist: x€ Teilkriterium Neu-/Mehrgeschäft i.H.v. y%  des Bestandes (min. aber z €): nicht erfüllt
+        - Produktiv Ja/Nein: [Wert]
         Makler B Strukturnummer 2:
-        - Bestand gesamt Ist: 100.000€, Bestand Gesamt Vorjahr: 90.000€; Teilkriterium Bestand Ist > Bestand Vorjahr: erfüllt
-        - Neu-/Mehrgeschäft Ist: 50.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): erfüllt
-        - Produktiv Ja/Nein: Ja
-        Makler C Strukturnummer 3:
-        - Bestand gesamt Ist: 100.000€, Bestand Gesamt Vorjahr: 110.000€; Teilkriterium Bestand Ist > Bestand Vorjahr: nicht erfüllt
-        - Neu-/Mehrgeschäft Ist: 50.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): erfüllt
-        - Produktiv Ja/Nein: Nein
-        Makler D Strukturnummer 4:
-        - Bestand gesamt Ist: 100.000€, Bestand Gesamt Vorjahr: 90.000€; Teilkriterium Bestand Ist > Bestand Vorjahr: erfüllt
-        - Neu-/Mehrgeschäft Ist: 20.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): nicht erfüllt
-        - Produktiv Ja/Nein: Nein
-        nMakler E Strukturnummer 5:
-        - Bestand gesamt Ist: 100.000€, Bestand Gesamt Vorjahr: 90.000€; Teilkriterium Bestand Ist > Bestand Vorjahr: erfüllt
-        - Neu-/Mehrgeschäft Ist: 25.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): erfüllt
-        - Produktiv Ja/Nein: Ja
+        - Bestand gesamt Ist: x €, Bestand Gesamt Vorjahr:y€; Teilkriterium Bestand Ist > Bestand Vorjahr: erfüllt
+        - Neu-/Mehrgeschäft Ist: x € Teilkriterium Neu-/Mehrgeschäft i.H.v. y %  des Bestandes (min. aber z €): erfüllt
+         - Produktiv Ja/Nein: [Wert]
+        ...
         """
         ]
     
@@ -429,7 +395,7 @@ def generate_follow_up_questions(response_text):
 
     response_lower = response_text.lower()
     questions = []
-    
+
     if 'quantitative zielerreichung' in response_lower:
         questions.append("Wie erreiche ich meine persönlichen Ziele?")
         questions.append("Wie erreichen wir unsere Teamziele?")
@@ -498,11 +464,14 @@ def reset_session():
     
 # In-memory store for messages (simple implementation)
 streaming_responses = {}
+combined_message = ""
 
 # Function to handle streaming responses from OpenAI
-def handle_streaming_response(mystream, user_id, prompt, assistant_id):
+def handle_streaming_response(mystream, user_id, prompt, assistant_id, multiple):
     global analysis_result
     global thread
+    global combined_message
+    suggestions = []
 
     try:
         if mystream is None:
@@ -524,16 +493,19 @@ def handle_streaming_response(mystream, user_id, prompt, assistant_id):
     
             task_completed.clear()  # Reset task event
             analysis_result = {"status": "running"}
-
+    
             logger.info(f'Stream started for assistant ID: {assistant.id}')
-
         else:
             stream = mystream
         
-        combined_message = ""
+        if multiple is None:
+            combined_message = ""
+        
+        if prompt is not None:
+            suggestions = generate_follow_up_questions(prompt)
         
         for chunk in stream:
-            logger.info(f"OpenAI response chunk: {chunk}")
+            #logger.info(f"OpenAI response chunk: {chunk}")
 
             # Handle initial events
             if chunk.event == 'thread.created':
@@ -547,30 +519,34 @@ def handle_streaming_response(mystream, user_id, prompt, assistant_id):
                         #logger.info(f"Captured content chunk: {content}")
                         combined_message += content
                         if user_id in streaming_responses:
-                            streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": True})
+                            streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": True, "suggestions": []})
                         else:
-                            streaming_responses[user_id] = [{"role": "assistant", "content": combined_message, "is_streaming": True}]
+                            streaming_responses[user_id] = [{"role": "assistant", "content": combined_message, "is_streaming": True, "suggestions": []}]
             elif chunk.event == 'thread.message.completed':
                 logger.info(f"Message completed with content: {chunk.data.content}")
                 # Mark the end of message and indicate final message
                 if user_id in streaming_responses:
-                    streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": False})
+                    if multiple is None:
+                        streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": False, "suggestions": suggestions})
+                    else:
+                        combined_message += "\n\n"
                 else:
-                    streaming_responses[user_id] = [{"role": "assistant", "content": combined_message, "is_streaming": False}]
+                    streaming_responses[user_id] = [{"role": "assistant", "content": combined_message, "is_streaming": False, "suggestions": suggestions}]
             elif chunk.event == 'thread.run.requires_action':
                 # Handle required tool calls
                 tool_calls = chunk.data.required_action.submit_tool_outputs.tool_calls
-                mystream = create_output(chunk.data, tool_calls, path, thread)
-                handle_streaming_response(mystream, user_id, None, None)
+                create_output(chunk.data, tool_calls, path, thread)
                 if user_id in streaming_responses:
-                    streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": False})
+                    streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": False, "suggestions": suggestions})
                 else:
-                    streaming_responses[user_id] = [{"role": "assistant", "content": combined_message, "is_streaming": False}]
+                    streaming_responses[user_id] = [{"role": "assistant", "content": combined_message, "is_streaming": False, "suggestions": suggestions}]
                 logger.info("Tool outputs created")
             elif chunk.event == 'thread.run.completed':
                 logger.info("Thread run completed")
 
-        suggestions = generate_follow_up_questions(prompt)
+        #if prompt is not None: 
+        #suggestions = generate_follow_up_questions("Wo stehe ich in Hinblick auf meine quantitative Zielerreichung?")
+        #    streaming_responses[user_id].append({"role": "assistant", "suggestions": suggestions, "is_streaming": False})
         analysis_result['messages'] = combined_message
         analysis_result['suggestions'] = suggestions
         logger.info("Task completed successfully")
@@ -600,7 +576,7 @@ def chat():
     
     # Start the streaming response in a separate thread
     logger.info("Starting background task")
-    threading.Thread(target=handle_streaming_response, args=(None, user_id, user_input, assistant_id)).start()
+    threading.Thread(target=handle_streaming_response, args=(None, user_id, user_input, assistant_id, None)).start()
     
     return jsonify({"status": "streaming", "user_id": user_id})
 

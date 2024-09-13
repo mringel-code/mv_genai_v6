@@ -471,6 +471,7 @@ def handle_streaming_response(mystream, user_id, prompt, assistant_id, multiple)
     global analysis_result
     global thread
     global combined_message
+    suggestions = []
 
     try:
         if mystream is None:
@@ -499,9 +500,11 @@ def handle_streaming_response(mystream, user_id, prompt, assistant_id, multiple)
         
         if multiple is None:
             combined_message = ""
+            
+        if prompt is not None:
+            suggestions = generate_follow_up_questions(prompt)
         
         for chunk in stream:
-            logger.info(f"OpenAI response chunk: {chunk}")
 
             # Handle initial events
             if chunk.event == 'thread.created':
@@ -512,35 +515,33 @@ def handle_streaming_response(mystream, user_id, prompt, assistant_id, multiple)
                 for block in chunk.data.delta.content:
                     if block.type == 'text':
                         content = block.text.value
-                        #logger.info(f"Captured content chunk: {content}")
                         combined_message += content
                         if user_id in streaming_responses:
-                            streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": True})
+                            streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": True, "suggestions": []})
                         else:
-                            streaming_responses[user_id] = [{"role": "assistant", "content": combined_message, "is_streaming": True}]
+                            streaming_responses[user_id] = [{"role": "assistant", "content": combined_message, "is_streaming": True, "suggestions": []}]
             elif chunk.event == 'thread.message.completed':
                 logger.info(f"Message completed with content: {chunk.data.content}")
                 # Mark the end of message and indicate final message
                 if user_id in streaming_responses:
                     if multiple is None:
-                        streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": False})
+                        streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": False, "suggestions": suggestions})
                     else:
                         combined_message += "\n\n"
                 else:
-                    streaming_responses[user_id] = [{"role": "assistant", "content": combined_message, "is_streaming": False}]
+                    streaming_responses[user_id] = [{"role": "assistant", "content": combined_message, "is_streaming": False, "suggestions": suggestions}]
             elif chunk.event == 'thread.run.requires_action':
                 # Handle required tool calls
                 tool_calls = chunk.data.required_action.submit_tool_outputs.tool_calls
                 create_output(chunk.data, tool_calls, path, thread)
                 if user_id in streaming_responses:
-                    streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": False})
+                    streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": False, "suggestions": suggestions})
                 else:
-                    streaming_responses[user_id] = [{"role": "assistant", "content": combined_message, "is_streaming": False}]
+                    streaming_responses[user_id] = [{"role": "assistant", "content": combined_message, "is_streaming": False, "suggestions": suggestions}]
                 logger.info("Tool outputs created")
             elif chunk.event == 'thread.run.completed':
                 logger.info("Thread run completed")
 
-        suggestions = generate_follow_up_questions(prompt)
         analysis_result['messages'] = combined_message
         analysis_result['suggestions'] = suggestions
         logger.info("Task completed successfully")
