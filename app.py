@@ -284,30 +284,18 @@ def create_appointment():
 def productive_broker_analyze(path):
     logger.info('productive_broker_analyze function triggered')
     prompt_steps = [
-        f"""
-        Erstelle eine Auflistung der Makler von Account Manager {mock_user}, die die Zielvorgaben für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele erreichen! Erstelle die Auflistung entsprechend folgenden Musterbeispiel:
-        
+        """
+        Ermittle die Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele erreichen. Entnimm die Einteilung "produktiv ja/nein" direkt der korrespondierenden Tabelle und Spalte in Maklervertrieb Zahlen. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
         Im Folgenden findest Du eine Auflistung deiner produktiven Makler:
         Makler A Strukturnummer 1:
-        - Bestand gesamt Ist: 9.000€, Bestand Gesamt Vorjahr: 10.000€; Teilkriterium Bestand Ist > Bestand Vorjahr: nicht erfüllt
-        - Neu-/Mehrgeschäft Ist: 1.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): nicht erfüllt
+        - Bestand gesamt Ist: x€, Bestand Gesamt Vorjahr: y€; Teilkriterium Bestand Ist > Bestand Vorjahr: nicht erfüllt
+        - Neu-/Mehrgeschäft Ist: x€ Teilkriterium Neu-/Mehrgeschäft i.H.v. y%  des Bestandes (min. aber z €): nicht erfüllt
         - Produktiv Ja/Nein: Nein
         Makler B Strukturnummer 2:
-        - Bestand gesamt Ist: 100.000€, Bestand Gesamt Vorjahr: 90.000€; Teilkriterium Bestand Ist > Bestand Vorjahr: erfüllt
-        - Neu-/Mehrgeschäft Ist: 50.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): erfüllt
-        - Produktiv Ja/Nein: Ja
-        Makler C Strukturnummer 3:
-        - Bestand gesamt Ist: 100.000€, Bestand Gesamt Vorjahr: 110.000€; Teilkriterium Bestand Ist > Bestand Vorjahr: nicht erfüllt
-        - Neu-/Mehrgeschäft Ist: 50.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): erfüllt
-        - Produktiv Ja/Nein: Nein
-        Makler D Strukturnummer 4:
-        - Bestand gesamt Ist: 100.000€, Bestand Gesamt Vorjahr: 90.000€; Teilkriterium Bestand Ist > Bestand Vorjahr: erfüllt
-        - Neu-/Mehrgeschäft Ist: 20.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): nicht erfüllt
-        - Produktiv Ja/Nein: Nein
-        nMakler E Strukturnummer 5:
-        - Bestand gesamt Ist: 100.000€, Bestand Gesamt Vorjahr: 90.000€; Teilkriterium Bestand Ist > Bestand Vorjahr: erfüllt
-        - Neu-/Mehrgeschäft Ist: 25.000€ Teilkriterium Neu-/Mehrgeschäft i.H.v. 20%  des Bestandes (min. aber 25.000€): erfüllt
-        - Produktiv Ja/Nein: Ja
+        - Bestand gesamt Ist: x €, Bestand Gesamt Vorjahr:y€; Teilkriterium Bestand Ist > Bestand Vorjahr: erfüllt
+        - Neu-/Mehrgeschäft Ist: x € Teilkriterium Neu-/Mehrgeschäft i.H.v. y %  des Bestandes (min. aber z €): erfüllt
+         - Produktiv Ja/Nein: Ja
+        ...
         """
         ]
     
