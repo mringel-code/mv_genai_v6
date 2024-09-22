@@ -559,6 +559,9 @@ def handle_streaming_response(mystream, user_id, prompt, assistant_id, multiple)
         
         if multiple is None:
             combined_message = ""
+            
+        if prompt is not None:
+            suggestions = generate_follow_up_questions(prompt)
         
         if prompt is not None:
             suggestions = generate_follow_up_questions(prompt)
