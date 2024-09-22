@@ -211,7 +211,7 @@
                 });
         }
 
-        function appendMessage(message, sender, streaming) {
+        function appendMessage(message, sender, streaming, suggestions = []) {
             const messageClass = sender === 'user' ? 'user' : 'assistant';
             const senderLabel = sender === 'user' ? 'You' : 'Zielnavigator';
             const messageContainer = document.getElementById('chatMessages');
@@ -239,6 +239,11 @@
                 messageElement.classList.add('chat-message', messageClass);
                 messageElement.innerHTML = `<strong>${senderLabel}:</strong> ${formatMessageContent(message)}`;
                 messageContainer.appendChild(messageElement);
+            }
+            
+            // Only update suggestions if it is the final message
+            if (!streaming && suggestions.length > 0) {
+                suggestFollowUpQuestions(suggestions);
             }
 
             messageContainer.scrollTop = messageContainer.scrollHeight;
@@ -272,7 +277,8 @@
                     eventSource.onmessage = function(event) {
                         const message = JSON.parse(event.data);
                         const streaming = message.is_streaming === true;
-                        appendMessage(message.content, 'assistant', streaming);
+                        const suggestions = message.suggestions || [];
+                        appendMessage(message.content, 'assistant', streaming, suggestions);
                         
                         if (!streaming || message.content.startsWith("Error")) {
                             loader.style.display = 'none';
