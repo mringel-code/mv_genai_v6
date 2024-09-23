@@ -13,19 +13,19 @@
             height: 100vh;
             display: flex;
             flex-direction: column;
-            background-color: #f8f9fa; /* Light background for uniformity */
-            overflow: hidden; /* Prevent scrollbars */
+            background-color: #f8f9fa;
+            overflow: hidden;
         }
 
         .header {
-            background-color: #343a40; /* Darker header */
-            height: 50px; /* Smaller header height */
+            background-color: #343a40;
+            height: 50px;
             display: flex;
             align-items: center;
-            padding: 0 15px; /* Padding for content inside header */
+            padding: 0 15px;
             color: white;
-            width: 100%; /* Full width */
-            box-sizing: border-box; /* Ensure padding is included in width calculation */
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .header img {
@@ -60,36 +60,45 @@
             display: flex;
             flex: 1;
             overflow: hidden;
+            padding: 10px; /* Added padding around main content */
+            box-sizing: border-box; /* Ensure padding is included in box model */
         }
 
-        .sidebar,
-        .documents-right {
-            width: 20%;
-            padding: 20px; /* Added more padding */
+        .sidebar {
+            width: 25%;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding: 20px;
             overflow-y: auto;
             box-sizing: border-box;
-            background-color: #ffffff; /* White background */
-            border-right: 1px solid #dee2e6; /* Light border */
+            background-color: #ffffff;
+            border-right: 1px solid #dee2e6;
+        }
+        
+        .system-card {
+            margin-top: auto;
         }
 
         .chat-window {
-            flex: 1;
             display: flex;
             flex-direction: column;
-            background-color: #ffffff; /* White background */
-            padding: 10px;
-            box-sizing: border-box; /* Ensure padding is included in width calculation */
-            height: calc(100vh - 50px); /* Full height minus header */
-            border-left: 1px solid #dee2e6; /* Light border */
+            background-color: #ffffff;
+            padding: 20px;
+            box-sizing: border-box;
+            height: 100%;
+            border-left: 1px solid #dee2e6;
         }
 
         .chat-messages {
             flex: 1;
             overflow-y: auto;
-            border: 1px solid #dee2e6; /* Light border */
+            border: 1px solid #dee2e6;
             padding: 10px;
-            background-color: #f8f9fa; /* Light background */
+            background-color: #f8f9fa;
             border-radius: 4px;
+            margin-bottom: 10px;
+            max-height: calc(100vh - 210px);
         }
 
         .chat-message {
@@ -112,21 +121,23 @@
 
         .chat-input {
             display: flex;
-            padding: 10px 0;
+            border-top: 1px solid #dee2e6;
+            margin-top: 10px;
+            flex-shrink: 0;
         }
 
         .chat-input input {
             flex: 1;
             padding: 10px;
-            border: 1px solid #dee2e6; /* Light border */
+            border: 1px solid #dee2e6;
             border-radius: 4px;
         }
 
         .chat-input button {
             padding: 5px 10px;
             margin-left: 5px;
-            border: 1px solid #dee2e6; /* Light border */
-            background-color: #343a40; /* Dark background for button */
+            border: 1px solid #dee2e6;
+            background-color: #6c757d;
             color: white;
             border-radius: 4px;
             cursor: pointer;
@@ -137,7 +148,9 @@
         }
 
         .suggestions {
-            padding: 5px;
+            max-height: 100px;
+            overflow-y: auto;
+            flex-shrink: 0;
         }
 
         .suggestions ul {
@@ -160,19 +173,37 @@
             background-color: #e9f7ef; /* Same light green as user message */
         }
 
-        .reset-session-button {
-            background-color: #343a40; /* Dark background for button */
+        .reset-session-button,
+        .change-user-button {
+            background-color: #6c757d; /* Subtle color for button */
             color: white;
             border: none;
-            padding: 5px 10px;
+            padding: 5px 15px; /* Smaller padding */
             border-radius: 4px;
             cursor: pointer;
-            width: 100%; /* Ensure full width */
             box-sizing: border-box; /* Ensure padding is included in width calculation */
+            font-size: 0.9em; /* Slightly smaller font size */
+            width: 100%; /* Full width */
         }
 
-        .reset-session-button:hover {
-            background-color: #c82333; /* Slight red for hover effect */
+        .reset-session-button:hover,
+        .change-user-button:hover {
+            background-color: #5a6268; /* Slightly darker on hover */
+        }
+
+        .upload-button {
+            background-color: #6c757d; /* Subtle color for button */
+            color: white;
+            border: none;
+            padding: 5px 15px; /* Smaller padding */
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em; /* Slightly smaller font size */
+            width: 100%; /* Full width */
+        }
+
+        .upload-button:hover {
+            background-color: #5a6268; /* Slightly darker on hover */
         }
 
         #loader {
@@ -180,6 +211,58 @@
             font-size: 1em;
             color: black;
         }
+        
+        /* Card within chat-window */
+        .card {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .card-header, .card-body {
+            padding: 1rem 1.25rem;
+        }
+
+        .card-header {
+            padding: 0.5rem 1rem; /* Consistent padding */
+            font-size: 1rem; /* Uniform font size */
+            cursor: pointer; /* Indicate interactivity */
+            background-color: #f1f1f1; /* Match background color */
+            color: #000; /* Match text color */
+            height: 50px; /* Set a fixed height */
+            display: flex; /* Flexbox for vertical centering */
+            align-items: center; /* Center items vertically */
+            justify-content: space-between; /* Space between text and icon */
+        }
+
+        .card-header button {
+            width: 100%; /* Make button full width */
+            text-align: left; /* Align text to the left */
+            padding: 0; /* Remove padding */
+            display: flex; /* Flexbox for icon alignment */
+            justify-content: space-between; /* Space between text and icon */
+            align-items: center; /* Center items vertically */
+            background-color: transparent; /* Transparent background to match card */
+            border: none; /* Remove button border */
+            outline: none; /* Remove outline */
+            height: 100%; /* Make button fill the header height */
+            color: #000; /* Match text color */
+        }
+
+        .card-header .indicator {
+            font-size: 1.25rem; /* Adjust icon size */
+            color: #000; /* Match icon color */
+        }
+
+        .card-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+            padding: 20px;
+        }
+        
     </style>
 </head>
 <body>
@@ -193,40 +276,72 @@
 
     <div class="container-fluid">
         <div class="row main">
-            <div class="col-md-2 sidebar">
-                <h2 class="h6">Upload Documents</h2> <!-- Reduced header size to h6 -->
-                <form method="POST" action="/" enctype="multipart/form-data">
-                    <div class="form-group">
-                        <input type="file" name="document" aria-label="Choose document file to upload" class="form-control-file">
-                        <input type="submit" value="Upload" class="btn btn-primary mt-2">
+            <div class="col-md-3 sidebar d-flex flex-column">
+                <div class="card mb-3">
+                    <div class="card-header" id="headingKnowledgeBase" data-toggle="collapse" data-target="#collapseKnowledgeBase" aria-expanded="true" aria-controls="collapseKnowledgeBase">
+                        <h2 class="mb-0">
+                            <button class="btn btn-link">
+                                <span>Knowledge Base</span>
+                                <span class="indicator">&#9660;</span> <!-- Down arrow icon -->
+                            </button>
+                        </h2>
                     </div>
-                </form>
-                <h3 class="h6">Uploaded Documents:</h3> <!-- Reduced header size to h6 -->
-                <ul class="list-group">
-                    {% for file in uploaded_files %}
-                        <li class="list-group-item">{{ file }}</li>
-                    {% endfor %}
-                </ul>
-                <button class="reset-session-button btn btn-danger mt-3" onclick="resetSession()">Reset Session</button>
-            </div>
-            <div class="col-md-8 chat-window d-flex flex-column">
-                <h2 class="h6">Chat Window</h2> <!-- Reduced header size to h6 -->
-                <div id="loader" class="text-center mt-2">Ich arbeite an der Antwort. Bitte Geduld.</div>
-                <div class="chat-messages flex-grow-1" id="chatMessages"></div>
-                <div class="suggestions mt-3" id="suggestionsContainer">
-                    <p>Suggested Questions:</p>
-                    <ul id="suggestionsList" class="list-group"></ul>
-                </div>
-                <div class="chat-input input-group mt-3">
-                    <input type="text" id="userInput" placeholder="Type your message here..." aria-label="Type message" class="form-control">
-                    <div class="input-group-append">
-                        <button onclick="sendMessage()" id="sendButton" class="btn btn-primary">Send</button>
+                    <div id="collapseKnowledgeBase" class="collapse show" aria-labelledby="headingKnowledgeBase">
+                        <div class="card-body">
+                            <ul class="list-group flex-grow-1">
+                                {% for file in uploaded_files %}
+                                    <li class="list-group-item">{{ file }}</li>
+                                {% endfor %}
+                            </ul>
+                            <h3 class="h6 mt-4">Upload Document</h3>
+                            <form method="POST" action="/" enctype="multipart/form-data">
+                                <div class="form-group">
+                                    <label for="document" class="sr-only">Choose document file to upload</label>
+                                    <input type="file" name="document" id="document" aria-label="Choose document file to upload" class="form-control-file">
+                                    <button type="submit" class="upload-button mt-2">Upload</button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
+    
+                <div class="system-card">
+                    <div class="card-header" id="headingSystem" data-toggle="collapse" data-target="#collapseSystem" aria-expanded="true" aria-controls="collapseSystem">
+                        <h2 class="mb-0">
+                            <button class="btn btn-link">
+                                <span>System</span>
+                                <span class="indicator">&#9650;</span> <!-- Up arrow icon -->
+                            </button>
+                        </h2>
+                    </div>
+                    <div id="collapseSystem" class="collapse" aria-labelledby="headingSystem">
+                        <div class="card-body">
+                            <button class="reset-session-button mb-2" onclick="resetSession()">Reset</button>
+                            <button class="change-user-button">Change User</button>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="col-md-2 documents-right">
-                <h2 class="h6">Generated Documents</h2> <!-- Reduced header size to h6 -->
-                <p>Additional documents generated by the app...</p>
+            <div class="col-md-9 chat-window d-flex flex-column">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="h6 mb-0">Hi <b>Max Mustermann</b>! Feel free to chat with your Zielnavigator here:</h2>
+                    </div>
+                    <div class="card-body d-flex flex-column">
+                        <div id="loader" class="text-center mt-2">Ich arbeite an der Antwort. Bitte Geduld.</div>
+                        <div class="chat-messages" id="chatMessages"></div>
+                        <div class="suggestions mt-3" id="suggestionsContainer" style="display: none;">
+                            <p>Suggested Questions:</p>
+                            <ul id="suggestionsList" class="list-group"></ul>
+                        </div>
+                        <div class="chat-input input-group mt-3">
+                            <input type="text" id="userInput" placeholder="Type your message here..." aria-label="Type message" class="form-control">
+                            <div class="input-group-append">
+                                <button onclick="sendMessage()" id="sendButton" class="btn btn-primary">Send</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

@@ -162,36 +162,34 @@ def target_analyze():
     
     prompt_steps = [
         """
-        Ermittle die Zielerreichung für Account Manager Max Mustermann für Zielart 1 Abteilungsziele. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
-        Hier is eine Übersicht für deine Zielerreichung:
-        ### Zielart 1 Abteilungsziele:
-         - Ergebnis Die Schadenquote liegt mit xx,xx% derzeit im Zielbereich (Zielgröße yy,yy %).
-        """,
-        """
-        Ermittle die Zielerreichung für Account Manager Max Mustermann für Zielart 2 Teamziele. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
-        ### Zielart 2 Teamziele:
+        Erstelle eine Übersicht der Zielerreichung für Account Manager Max Mustermann und seine Makler Accounts. Durchlaufe dafür folgende Schritte, nenne die Schritte aber nicht in deiner Antwort.
+        
+        Schritt 1: Extrahiere die Kennzahlen für Zielart 1 Abteilungsziele. Ermittle die Zielerreichung und fasse das Ergebnis wie folgt zusammen:
+        Zielart 1 Abteilungsziele:
+         - Die Schadenquote liegt mit xx,xx % derzeit im Zielbereich (Zielgröße yy,yy %).
+        
+        Schritt 2: Extrahiere die Kennzahlen für Zielart 1 Abteilungsziele. Ermittle die Zielerreichung und fasse das Ergebnis dieses Schritts wie folgt zusammen:
+        Zielart 2 Teamziele:
         - Im Team wurde der Zielwert des Bestands i.H.v. y € noch nicht erreicht. Aktuell liegt der Bestand bei x €.
         - Der Zielwert des Neu-/Mehrgeschäftes i.H.v. y € wurde bislang noch nicht erreicht und beträgt derzeit y €.
-        """,
-        """,
-        Ermittle die Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Bestandsziele innerhalb der Zielart 3 Persönliche Ziele erreichen. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
-        ### Zielart 3 Persönliche Ziele:
-        #### Messgröße Bestandsziele:
+        
+        Schritt 3: Extrahiere die Kennzahlen für die Zielart 3 Persönliche Ziele Messgröße Bestand (Privat + SMC) sowie Messgröße Bestand (MidCorp). Extrahiere die jeweilige Zielerreichung und fasse das Ergebnis wie folgt zusammen: 
+        Zielart 3 Persönliche Ziele: Messgröße Bestandsziele:
         - x von y Maklern konnten den Bestand (Privat + SMC) im Vergleich zum Vorjahr steigern.
-        - x von y Maklern konnten den Bestand (Firmen MC) im Vergleich zum Vorjahr steigern. 
-        - Ingesamt hat Dein Maklerportfolio ein Bestandsvolument von X TEUR, im VJ wurden X TEUR erreicht.
-        """,
-        """
-        Ermittle die Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Neu-/Mehrgeschäftsziele innerhalb der Zielart 3 Persönliche Ziele erreichen. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
-        #### Messgröße Neu-/Mehrgeschäftsziele:
+        - x von y Maklern konnten den Bestand (MidCorp) im Vergleich zum Vorjahr steigern.
+        - Ingesamt hat Dein Maklerportfolio ein Bestandsvolument von x €, im Vorjahr wurden y € erreicht.
+        
+        Schritt 4: Extrahiere die Kennzahlen für die Messgröße Neu-/Mehrgeschäftsziele innerhalb der Zielart 3 Persönliche Ziele. Ermittle die Zielerreichung und fasse das Ergebnis wie folgt zusammen:
+        Messgröße Neu-/Mehrgeschäftsziele:
         - x von y Makern konnten das Neu/Mehrgeschäft (Privat + SMC) im Vergleich zum Vorjahr steigern.
-        - x von y Makern konnten das Neu/Mehrgeschäft (Firmen MC) im Vergleich zum Vorjahr steigern. 
-         - Ingesamt hat Dein Maklerportfolio ein Neu-/Mehrgeschäft von X TEUR, im VJ wurden X TEUR erreicht.
-        """,
-        """
-        Ermittle die Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele erreichen. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
-        #### Messgröße Produktive Makler:
+        - x von y Makern konnten das Neu/Mehrgeschäft (MidCorp) im Vergleich zum Vorjahr steigern. 
+         - Ingesamt hat Dein Maklerportfolio ein Neu-/Mehrgeschäft von x €, im Vorjahr wurden y € erreicht.
+        
+        Schritt 5: Extrahiere die Kennzahlen für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele. Ermittle die Zielerreichung und fasse das Ergebnis wie folgt zusammen:
+        Messgröße Produktive Makler :
         - x von y Maklern sind bereits produktiv.
+        
+        Schritt 6: Biete weitere Unterstützung an.
         """
         ]
     
@@ -261,29 +259,32 @@ def target_gap():
             """
         }
 
-    result3 = get_bestandsziele()
-    result4 = get_neugeschaeftsziele()
-    result5 = get_produktive_makler()
+    #result3 = get_bestandsziele()
+    #result4 = get_neugeschaeftsziele()
+    #result5 = get_produktive_makler()
     
     prompt_steps = [
             f"""
-            Hier sind Definitionen und Ergebnisse für die persönliche Zielerreichung des Maklerbetreuers auf Ebene der einzelnen Makler: 
-            Bestandsziele: {result3} 
-            Neu-/Mehrgeschäftsziele: {result4} 
-            Ziel Produktive Makler: {result5} 
-            Beantworte mir in der Folge Fragen auf Basis dieser Definitionen und Daten.
-            """,
-            f"""
-            Ermittle, wie die einzelnen Makler die Ziele (Bestand, Neu-/Mehrgeschäft, Produktiver Makler) am effizientesten erreichen können, falls diese noch nicht erreicht wurden. 
-            Konzentriere dich auf diejenigen Kennzahlen, die aufgrund einer Zielkorrelation den größten Effekt auf die Zielerreichung der meisten Ziele haben. Stelle sicher, dass sämtliche Ergebnisse mathematisch korrekt sind.
-            """,
-            f"""
-            Nimm an, die untersuchten Makler verbessern ihre Messgrößen entsprechend. 
-            Wieviele Makler werden dann ihren Bestand im Vergleich zum Vorjahr steigern? Wieviele Makler werden dadurch produktiv? Stelle sicher, dass sämtliche Ergebnisse mathematisch korrekt sind. 
-            Hier ein Beispiel: - Dem Makler MaklerCorp fehlen noch 1000 € im Bestandsgeschäft (Privat + SMC) um das Vorjahres-Ziel zu erreichen. Gleichzeitig erreicht er dadurch das Ziel Produktiver Makler.
-            """,
-            f"""
-            Fasse deine Ergebnisse entsprechend folgendem Beispiel zusammen: {output_template_final}
+            Analysiere das Maklerportfolio von Account Manager Max Mustermann und mache Vorschläge, wie dieser seine persönlichen Ziele effizient erreichen kann. Berücksichtige dabei die Korrelationen zwischen den verschiedenen Zielarten. Durchlaufe dafür folgende Schritte, nenne die Schritte aber nicht in deiner Antwort.
+
+            Schritt 1: Analysiere das Maklerportfolio für die verschiedenen Messgrößen in der Zielart 3 Persönliche Ziele und stelle dar, welche Kennzahlen sich in welcher Höhe verändern müssten, um diese Ziele zu erreichen. Konzentriere dich auf diejenigen Kennzahlen, die aufgrund einer Zielkorrelation den größten Effekt auf die Zielerreichung der meisten Ziele haben. Fasse das Ergebnis wie folgt zusammen:
+            - Der Makler (Accountname, Strukturnummer MSN06) fehlen noch x € im Bestandsgeschäft (Privat + SMC) um das VJ Ziel zu erreichen. Gleichzeitig wird er dadurch produktiv. 
+            - Der Makler (Accountname, Strukturnummer MSN06) fehlen noch x € im Bestandsgeschäft (MidCorp) um das VJ Ziel zu erreichen. Gleichzeitig wird er dadurch produktiv.
+            - Der Makler(Accountname, Strukturnummer MSN06) benötigt noch ein Neu-/Mehrgeschäft (Privat+SMC) von x € um das VJ Ziel zu erreichen. Gleichzeitig wird er dadurch produktiv.
+            
+            Schritt 2: Nimm an, die Makler verbessern ihre Messgrößen entsprechend deiner Analyse. Wieviele Makler werden dann ihren Bestand im Vergleich zum Vorjahr steigern? Wieviele Makler werden dadurch produktiv? Fasse deine Ergebniss wie folgt zusammen:
+            Bestandsziele:
+            - x von y Maklern werden den Bestand (Privat + SMC) im Vergleich zum Vorjahr steigern. 
+            - x von y Maklern werden den Bestand (MidCorp) im Vergleich zum Vorjahr steigern.
+            Ingesamt wird Dein Maklerportfolio ein Bestandsvolument von x € erreichen, im VJ wurden y € erreicht.
+            
+            Neu-/Mehrgeschäftsziele:
+            - x von y Makern werden das Neu/Mehrgeschäft(Privat + SMC) im Vergleich zum Vorjahr steigern.
+            - x von y Makern werden das Neu/Mehrgeschäft(MidCorp) im Vergleich zum Vorjahr steigern.
+            Ingesamt wird Dein Maklerportfolio ein Neu-/Mehrgeschäft von x € haben, im VJ wurden y € erreicht.
+            
+            Produktive Makler: 
+            - x von y Maklern werden produktiv.
             """
         ]
     
