@@ -117,6 +117,28 @@ def run_prompts_with_temp_thread(function, prompt_steps):
             if i==len(prompt_steps): 
                     multiple = None
             handle_streaming_response(temp_stream, user_id, None, None, multiple)
+    
+def run_prompt_with_code_interpreter_thread(function, prompt):
+    code_assistant = client.beta.assistants.retrieve("asst_vCYUUTgCj266XT4fN1daUqjE")
+    
+    code_thread = client.beta.threads.create()
+    thread_message = client.beta.threads.messages.create(
+        thread_id=code_thread.id,
+        role="user",
+        content=prompt,
+    )
+    
+    code = client.beta.threads.runs.create_and_poll(
+        thread_id = code_thread.id,
+        assistant_id=code_assistant.id,
+    )
+    
+    if code.status in ['completed']:
+        messages = list(client.beta.threads.messages.list(thread_id=code_thread.id))
+        response = process_message(messages[0])
+        
+    return response
+        
 
 def soll_ist_analyze(broker_number, file_path):
     df = pd.read_excel(file_path, engine='openpyxl')
@@ -164,30 +186,55 @@ def target_analyze(file_path):
          - Die Schadenquote liegt mit xx,xx% derzeit im Zielbereich (Zielgröße yy,yy %).
         """,
         """
-        Ermittle die Zielerreichung für Account Manager Max Mustermann für Zielart 2 Teamziele. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
-        Zielart 2 Teamziele:
+        Befolge zur Ermittlung des Ergebnisses folgende Schritte, erzeuge aber keine Ausgabe für die Schritte.
+        Schritt 1: Lade die Daten aus dem Tabellenblatt 'Teamzuordnung' und setze die Spaltennamen explizit auf ['Account Manager', 'Team', 'Abteilung']. 
+        Schritt 2: Werte aus, zu welchem Team Account Manager "Max Mustermann" zugeordnet ist
+        Schritt 2: Lade die Daten aus dem Tabellenblatt 'Teamziele Bestand' und setze die Spaltennamen explizit auf ['Team', 'Ist Bestand Summe', 'Vorjahr Bestand Summe', 'Teamziel Bestand erreicht (Ja/Nein)']. 
+        Schritt 3: Filtere die Daten auf das Team von Max Mustermann.
+        Schritt 3: Werte 'Vorjahr Bestand Summe', 'Ist Bestand Summe' und 'Teamziel Bestand erreicht (Ja/Nein)' aus.
+        Schritt 4: Lade die Daten aus dem Tabellenblatt 'Teamziele Neugeschäft' und setze die Spaltennamen explizit auf ['Team', 'Ist Neu-/Mehrgeschäft Summe', 'Vorjahr Neu-/Mehrgeschäft Summe', 'Teamziel Neugeschäft erreicht (Ja/Nein)'].
+        Schritt 6: Filtere die Daten auf das Team von Max Mustermann.
+        Schritt 5: Werte 'Vorjahr Neu-/Mehrgeschäft Summe', 'Ist Neu-/Mehrgeschäft Summe' und 'Teamziel Neugeschäft erreicht (Ja/Nein)' aus.
+        Schritt 6: Erstelle eine Übersicht über die Zielerreichung von Max Mustermanns Team für Zielart 2 Teamziele wie folgt:
+        "Teamziele (Max Mustermann ist Team C zugeordnet):
         - Im Team wurde der Zielwert des Bestands i.H.v. y € noch nicht erreicht. Aktuell liegt der Bestand bei x €.
-        - Der Zielwert des Neu-/Mehrgeschäftes i.H.v. y € wurde bislang noch nicht erreicht und beträgt derzeit y €.
+        - Der Zielwert des Neu-/Mehrgeschäftes i.H.v. y € wurde bislang noch nicht erreicht und beträgt derzeit y €."
         """,
         """,
-        Ermittle die Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Bestandsziele innerhalb der Zielart 3 Persönliche Ziele erreichen. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
-        Zielart 3 Persönliche Ziele:
-        Messgröße Bestandsziele:
-        - x von y Maklern konnten den Bestand (Privat + SMC) im Vergleich zum Vorjahr steigern.
-        - x von y Maklern konnten den Bestand (Firmen MC) im Vergleich zum Vorjahr steigern. 
-        - Ingesamt hat Dein Maklerportfolio ein Bestandsvolument von X TEUR, im VJ wurden X TEUR erreicht.
+        Befolge zur Ermittlung des Ergebnisses folgende Schritte, erzeuge aber keine Ausgabe für die Schritte.
+        Schritt 1: Lade die Daten aus Tabelle 'Pers_Ziele_Neugeschäft' in Tabellenblatt 'Pers Ziele Neugeschäft' 
+        Schritt 2: Werte aus, wieviele Makler Accounts dem Account Manager 'Max Mustermann' zugeordnet sind. 
+        Schritt 3: Werte aus, wieviele Makler mit 'Branchensegment' "Privat" oder "SMC" das persönliche Ziel Neu-/Mehrgeschäft erreichen.
+        Schritt 4: Werte aus, wieviele Makler mit 'Branchensegment' "MidCorp" das persönliches Ziel Neu-/Mehrgeschäft erreichen.
+        Schritt 5: Werte aus wieviel Neu-/Mehrgeschäftsvolumen das Maklerportfolio von 'Account Manager' Max Mustermann aktuell hat und wieviel es im Vorjahr waren
+        Schritt 6: Erstelle eine Übersicht über die Zielerreichung von Account Manager Max Mustermann für Zielart 3 Persönliche Ziele Messgröße Neu-/Mehrgeschäft wie folgt:
+        "Persönliches Ziele Messgröße Neu-/Mehrgeschäft:
+        - x von y Makern konnten das Neu/Mehrgeschäft (Privat + SMC) im Vergleich zum Vorjahr steigern. 
+        - x von y Makern konnten das Neu/Mehrgeschäft (MidCorp) im Vergleich zum Vorjahr steigern.
+        - Ingesamt hat Dein Maklerportfolio ein Neu-/Mehrgeschäft von x €, im VJ wurden y € erreicht."
+
         """,
         """
-        Ermittle die Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Neu-/Mehrgeschäftsziele innerhalb der Zielart 3 Persönliche Ziele erreichen. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
-        Messgröße Neu-/Mehrgeschäftsziele:
-        - x von y Makern konnten das Neu/Mehrgeschäft (Privat + SMC) im Vergleich zum Vorjahr steigern.
-        - x von y Makern konnten das Neu/Mehrgeschäft (Firmen MC) im Vergleich zum Vorjahr steigern. 
-         - Ingesamt hat Dein Maklerportfolio ein Neu-/Mehrgeschäft von X TEUR, im VJ wurden X TEUR erreicht.
+        Befolge zur Ermittlung des Ergebnisses folgende Schritte, erzeuge aber keine Ausgabe für die Schritte.
+        Schritt 1: Lade die Daten aus Tabelle 'Pers_Ziele_Neugeschäft' in Tabellenblatt 'Pers Ziele Neugeschäft' 
+        Schritt 2: Werte aus, wieviele Makler Accounts dem Account Manager 'Max Mustermann' zugeordnet sind. 
+        Schritt 3: Werte aus, wieviele Makler mit 'Branchensegment' "Privat" oder "SMC" das persönliche Ziel Neu-/Mehrgeschäft erreichen.
+        Schritt 4: Werte aus, wieviele Makler mit 'Branchensegment' "MidCorp" das persönliches Ziel Neu-/Mehrgeschäft erreichen.
+        Schritt 5: Werte aus wieviel Neu-/Mehrgeschäftsvolumen das Maklerportfolio von 'Account Manager' Max Mustermann aktuell hat und wieviel es im Vorjahr waren
+        Schritt 6: Erstelle eine Übersicht über die Zielerreichung von Account Manager Max Mustermann für Zielart 3 Persönliche Ziele Messgröße Neu-/Mehrgeschäft wie folgt:
+        "Persönliches Ziele Messgröße Neu-/Mehrgeschäft:
+        - x von y Makern konnten das Neu/Mehrgeschäft (Privat + SMC) im Vergleich zum Vorjahr steigern. 
+        - x von y Makern konnten das Neu/Mehrgeschäft (MidCorp) im Vergleich zum Vorjahr steigern.
+        - Ingesamt hat Dein Maklerportfolio ein Neu-/Mehrgeschäft von x €, im VJ wurden y € erreicht."
         """,
         """
-        Ermittle die Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele erreichen. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
-        Messgröße Produktive Makler:
-        - x von y Maklern sind bereits produktiv.
+        Befolge zur Ermittlung des Ergebnisses folgende Schritte, erzeuge aber keine Ausgabe für die Schritte.
+        Schritt 1: Lade die Daten aus Tabelle 'Pers_Ziele_Produktive_Makler' in Tabellenblatt 'Persönl Ziele Produktive Makler' 
+        Schritt 2: Werte aus, wieviele Makler Accounts dem Account Manager 'Max Mustermann' zugeordnet sind. 
+        Schritt 3: Werte aus, wieviele davon das persönliche Ziel produktive Makler erreichen.
+        Schritt 4: Erstelle eine Übersicht über die Zielerreichung von Account Manager 'Max Mustermann' für Zielart 3 Persönliche Ziele Messgröße Produktive Makler wie folgt: 
+        "Produktive Makler:
+        - x von y Maklern sind bereits produktiv."
         """
         ]
     print(prompt_steps)
@@ -196,12 +243,17 @@ def target_analyze(file_path):
         return run_prompts_with_temp_thread("target_analyze", prompt_steps)
 
 def get_abteilungsziele():
-    prompt_steps = [
-            f'Ermittle die Definition für die Zielart 1 Abteilungsziele und wende diese Definition auf die vorliegenden Maklervertrieb Zahlen. Erstelle daraus eine Auflistung der Kennzahlen mit ihrem aktuellen Erreichungsgrad! Antworte möglichst detailliert, da deine Antwort in anderen Abfragen als Input weiterverwendet werden soll. Stelle sicher, dass sämtliche Ergebnisse mathematisch korrekt sind.'
-        ]
+    prompt = """
+        Befolge zur Ermittlung des Ergebnisses folgende Schritte, erzeuge aber keine Ausgabe für die Schritte.
+        Schritt 1: Lade die Daten aus dem Tabellenblatt 'Teamzuordnung' und setze die Spaltennamen explizit auf ['Account Manager', 'Team', 'Abteilung']. 
+        Schritt 2: Werte aus, welcher Abteilung Account Manager "Max Mustermann" zugeordnet ist
+        Schritt 3: Lade die Daten aus dem Tabellenblatt 'Abteilungsziele'
+        Schritt 4: Filtere die Daten auf die Abteilung von Max Mustermann.
+        Schritt 5: Werte 'Zielgröße', 'Durchschnittliche Schadenquote', 'Abteilungsziel erreicht (Ja/Nein)' aus. Zielgrößen und Schadenquoten werden in Prozent angegeben.
+        """
     
     with app.app_context():
-        return run_prompts_with_temp_thread("get_abteilungsziele", prompt_steps)
+        return run_prompt_with_code_interpreter_thread("get_abteilungsziele", prompt)
         
 def get_teamziele():
     prompt_steps = [
@@ -228,12 +280,15 @@ def get_neugeschaeftsziele():
         return run_prompts_with_temp_thread("get_bestandsziele", prompt_steps)
         
 def get_produktive_makler():
-    prompt_steps = [
-            f'Ermittle die Definition für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele und wende diese Definition auf die vorliegenden Maklervertrieb Zahlen an. Erstelle daraus eine Auflistung der Makler, die diese Zielvorgaben erreichen! Antworte möglichst detailliert, da deine Antwort in anderen Abfragen als Input weiterverwendet werden soll. Stelle sicher, dass sämtliche Ergebnisse mathematisch korrekt sind.'
-        ]
+    prompt = """
+        Befolge zur Ermittlung des Ergebnisses folgende Schritte, erzeuge aber keine Ausgabe für die Schritte.
+        Schritt 1: Lade die Daten aus Tabelle 'Pers_Ziele_Produktive_Makler' in Tabellenblatt 'Persönl Ziele Produktive Makler' 
+        Schritt 2: Werte aus, wieviele Makler Accounts dem Account Manager 'Max Mustermann' zugeordnet sind. 
+        Schritt 3: Werte aus, wieviele davon das persönliche Ziel produktive Makler erreichen.
+        """
     
     with app.app_context():
-        return run_prompts_with_temp_thread("productive_broker_analyze", prompt_steps)
+        return run_prompt_with_code_interpreter_thread("get_produktive_makler", prompt)
         
 def target_gap(file_path):
     logger.info('target_gap function triggered')
@@ -283,25 +338,21 @@ def create_appointment():
     
 def productive_broker_analyze(path):
     logger.info('productive_broker_analyze function triggered')
+    
+    data = get_produktive_makler()
+    
     prompt_steps = [
-        """
-        Ermittle die Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele erreichen. Entnimm die Einteilung "produktiv ja/nein" direkt der korrespondierenden Tabelle und Spalte in Maklervertrieb Zahlen. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
-        Im Folgenden findest Du eine Auflistung deiner produktiven Makler:
-        Makler A Strukturnummer 1:
-        - Bestand gesamt Ist: x€, Bestand Gesamt Vorjahr: y€; Teilkriterium Bestand Ist > Bestand Vorjahr: nicht erfüllt
-        - Neu-/Mehrgeschäft Ist: x€ Teilkriterium Neu-/Mehrgeschäft i.H.v. y%  des Bestandes (min. aber z €): nicht erfüllt
-        - Produktiv Ja/Nein: [Wert]
-        Makler B Strukturnummer 2:
-        - Bestand gesamt Ist: x €, Bestand Gesamt Vorjahr:y€; Teilkriterium Bestand Ist > Bestand Vorjahr: erfüllt
-        - Neu-/Mehrgeschäft Ist: x € Teilkriterium Neu-/Mehrgeschäft i.H.v. y %  des Bestandes (min. aber z €): erfüllt
-         - Produktiv Ja/Nein: [Wert]
-        ...
+        f"""
+        Erstelle eine Übersicht über die Zielerreichung von Account Manager 'Max Mustermann' für Zielart 3 Persönliche Ziele Messgröße Produktive Makler wie folgt: 
+        "Produktive Makler:
+        - x von y Maklern sind bereits produktiv."
+        Nutze dazu folgende Daten: {data}
+        Begrenze deine Ausgabe auf die angegebene Übersicht.
         """
         ]
-    
+    logger.info(f'produktive_broker_analyze prompt_steps: {prompt_steps}')
     with app.app_context():
         return run_prompts_with_temp_thread("productive_broker_analyze", prompt_steps)
-    
 
 def create_output(run, tool_calls, path, thread):
     tool_outputs = []
@@ -395,7 +446,7 @@ def generate_follow_up_questions(response_text):
 
     response_lower = response_text.lower()
     questions = []
-
+    
     if 'quantitative zielerreichung' in response_lower:
         questions.append("Wie erreiche ich meine persönlichen Ziele?")
         questions.append("Wie erreichen wir unsere Teamziele?")
@@ -415,7 +466,8 @@ def process_message(message):
             for content_item in message.content:
                 if hasattr(content_item, 'text') or hasattr(content_item, 'value'):
                     formatted_content = extract_and_format_content(content_item)
-                    response.append({"role": "assistant", "content": formatted_content})
+                    response.append(formatted_content)
+                    #response.append({"role": "assistant", "content": formatted_content})
                     logger.info(f'Processed content 1: {formatted_content}')
                     break  # Only handle the first relevant content
     return response
@@ -500,12 +552,11 @@ def handle_streaming_response(mystream, user_id, prompt, assistant_id, multiple)
         
         if multiple is None:
             combined_message = ""
-        
+            
         if prompt is not None:
             suggestions = generate_follow_up_questions(prompt)
         
         for chunk in stream:
-            #logger.info(f"OpenAI response chunk: {chunk}")
 
             # Handle initial events
             if chunk.event == 'thread.created':
@@ -516,7 +567,6 @@ def handle_streaming_response(mystream, user_id, prompt, assistant_id, multiple)
                 for block in chunk.data.delta.content:
                     if block.type == 'text':
                         content = block.text.value
-                        #logger.info(f"Captured content chunk: {content}")
                         combined_message += content
                         if user_id in streaming_responses:
                             streaming_responses[user_id].append({"role": "assistant", "content": combined_message, "is_streaming": True, "suggestions": []})
@@ -544,9 +594,6 @@ def handle_streaming_response(mystream, user_id, prompt, assistant_id, multiple)
             elif chunk.event == 'thread.run.completed':
                 logger.info("Thread run completed")
 
-        #if prompt is not None: 
-        #suggestions = generate_follow_up_questions("Wo stehe ich in Hinblick auf meine quantitative Zielerreichung?")
-        #    streaming_responses[user_id].append({"role": "assistant", "suggestions": suggestions, "is_streaming": False})
         analysis_result['messages'] = combined_message
         analysis_result['suggestions'] = suggestions
         logger.info("Task completed successfully")
