@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify, session, Response, stream_with_context, current_app
+from flask import Flask, render_template, request, redirect, url_for, jsonify, session, Response, stream_with_context, current_app, send_from_directory
 from werkzeug.utils import secure_filename
 import os
 import openai
@@ -346,6 +346,10 @@ def generate_follow_up_questions(response_text):
         questions.append("Erzähle mir mehr.")
     
     return questions
+
+@app.route('/uploads/<path:filename>')
+def download_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/', methods=['GET', 'POST'])
 def home():

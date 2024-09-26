@@ -290,7 +290,9 @@
                         <div class="card-body">
                             <ul class="list-group flex-grow-1">
                                 {% for file in uploaded_files %}
-                                    <li class="list-group-item">{{ file }}</li>
+                                    <li class="list-group-item">
+                                        <a href="{{ url_for('download_file', filename=file) }}" target="_blank">{{ file }}</a>
+                                    </li>
                                 {% endfor %}
                             </ul>
                             <h3 class="h6 mt-4">Upload Document</h3>
