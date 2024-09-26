@@ -84,7 +84,9 @@ def format_message_content(content):
     return content
 
 assistant = None
+thread = None
 temp_assistant = None
+temp_thread = None
 user_id = None
 mock_user = "Max Mustermann"
 kb_files = ['Input_1_sales.pdf', 'Zieldefinition MV v2.pdf', 'Maklervertrieb Zahlen v0.4.docx']
@@ -97,12 +99,14 @@ def initialize_assistant_for_session():
 def run_prompts_with_temp_thread(function, prompt_steps):
     with current_app.app_context():
         global user_id
+        global temp_assistant
+        global temp_thread
         
-        temp_assistant = client.beta.assistants.retrieve("asst_trlWRLh1q6z7OWMv2NWJI8OZ")
+        if temp_assistant is None: temp_assistant = client.beta.assistants.retrieve("asst_trlWRLh1q6z7OWMv2NWJI8OZ")
         multiple = True
         
         for i, step in enumerate(prompt_steps):
-            temp_thread = client.beta.threads.create()
+            if temp_thread is None: temp_thread = client.beta.threads.create()
             thread_message = client.beta.threads.messages.create(
                 thread_id=temp_thread.id,
                 role="user",
@@ -324,15 +328,6 @@ def productive_broker_analyze():
     with app.app_context():
         return run_prompts_with_temp_thread("productive_broker_analyze", prompt_steps)
 
-def create_thread(content_user_input):
-    thread = client.beta.threads.create()
-    message = client.beta.threads.messages.create(
-        thread_id=thread.id,
-        role="user",
-        content=content_user_input,
-    )
-    return thread
-
 def generate_follow_up_questions(response_text):
     if not isinstance(response_text, str):
         response_text = str(response_text)
@@ -534,14 +529,15 @@ class EventHandler(AssistantEventHandler):
 # Function to handle streaming responses from OpenAI
 def handle_streaming_response(mystream, user_id, prompt, assistant_id, multiple):
     global analysis_result
+    global assistant
     global thread
     global combined_message
     suggestions = []
 
     try:
         if mystream is None:
-            assistant = client.beta.assistants.retrieve(assistant_id)
-            thread = client.beta.threads.create()
+            if assistant is None: assistant = client.beta.assistants.retrieve(assistant_id)
+            if thread is None: thread = client.beta.threads.create()
             thread_message = client.beta.threads.messages.create(
                 thread_id=thread.id,
                 role="user",
@@ -599,9 +595,7 @@ def chat():
     logger.info(f"Received user input: {user_input}")
     user_id = str(request.remote_addr)  # Using the client's IP as a simple user identifier
     
-    assistant = client.beta.assistants.retrieve("asst_7Hx0vFUQZDlJd1aSRm8HjtjR")
-    assistant_id = assistant.id
-    session['assistant_id'] = assistant_id
+    assistant_id = session['assistant_id']
     
     # Initialize the user's response collection
     streaming_responses[user_id] = []
