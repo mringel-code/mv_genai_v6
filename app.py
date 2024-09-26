@@ -382,6 +382,7 @@ def check_status():
     
 @app.route('/reset_session', methods=['GET'])
 def reset_session():
+    session.clear()
     global assistant
     assistant = None
     global thread
@@ -390,7 +391,6 @@ def reset_session():
     temp_assistant = None
     global temp_thread
     temp_thread = None
-    session.clear()
     return redirect(url_for('home'))
     
 # In-memory store for messages (simple implementation)
@@ -599,6 +599,10 @@ def chat():
     logger.info(f"Received user input: {user_input}")
     user_id = str(request.remote_addr)  # Using the client's IP as a simple user identifier
     
+    if 'assistant_id' not in session:
+        assistant = initialize_assistant_for_session()
+        session['assistant_id'] = assistant.id
+
     assistant_id = session['assistant_id']
     
     # Initialize the user's response collection
