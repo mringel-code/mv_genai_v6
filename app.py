@@ -93,7 +93,8 @@ kb_files = ['Input_1_sales.pdf', 'Zieldefinition MV v2.pdf', 'Maklervertrieb Zah
 
 def initialize_assistant_for_session():
     global assistant
-    assistant = client.beta.assistants.retrieve("asst_7Hx0vFUQZDlJd1aSRm8HjtjR")
+    assistant = client.beta.assistants.retrieve("asst_trlWRLh1q6z7OWMv2NWJI8OZ") #assistant without functions
+    #assistant = client.beta.assistants.retrieve("asst_7Hx0vFUQZDlJd1aSRm8HjtjR") #assistant with functions
     return assistant
     
 def run_prompts_with_temp_thread(function, prompt_steps):
@@ -107,22 +108,32 @@ def run_prompts_with_temp_thread(function, prompt_steps):
         
         for i, step in enumerate(prompt_steps):
             if temp_thread is None: temp_thread = client.beta.threads.create()
-            thread_message = client.beta.threads.messages.create(
-                thread_id=temp_thread.id,
-                role="user",
-                content=step,
-            )
+            
+            # Wait until there's no active run before creating a new message
+            while True:
+                try:
+                    thread_message = client.beta.threads.messages.create(
+                        thread_id=temp_thread.id,
+                        role="user",
+                        content=step,
+                    )
+                    break  # Exit the loop if the message is created successfully
+                except openai.BadRequestError as e:
+                    if "while a run" in str(e):
+                        time.sleep(1)  # Wait for a second before retrying
+                    else:
+                        raise  # Re-raise any other exceptions
             
             event_handler = EventHandler()
             
             temp_stream = client.beta.threads.runs.stream(
                 thread_id = temp_thread.id,
-                assistant_id=temp_assistant.id,
+                assistant_id=assistant.id,
                 event_handler=event_handler,
             )
             
             if i==len(prompt_steps): 
-                    multiple = None
+                multiple = None
             handle_streaming_response(temp_stream, user_id, None, None, multiple)
 
 def soll_ist_analyze(broker_number, file_path):
@@ -169,36 +180,42 @@ def target_analyze():
         Erstelle eine Übersicht der Zielerreichung für Account Manager Max Mustermann und seine Makler Accounts. Durchlaufe dafür folgende Schritte, nenne die Schritte aber nicht in deiner Antwort.
         
         Schritt 1: Extrahiere die Kennzahlen für Zielart 1 Abteilungsziele. Ermittle die Zielerreichung und fasse das Ergebnis wie folgt zusammen:
-        Zielart 1 Abteilungsziele:
-         - Die Schadenquote liegt mit xx,xx % derzeit im Zielbereich (Zielgröße yy,yy %).
+        "### Abteilungsziele:
+         - Die Schadenquote liegt mit xx,xx % derzeit im Zielbereich (Zielgröße yy,yy %)."
         
         Schritt 2: Extrahiere die Kennzahlen für Zielart 1 Abteilungsziele. Ermittle die Zielerreichung und fasse das Ergebnis dieses Schritts wie folgt zusammen:
-        Zielart 2 Teamziele:
+        "### Teamziele:
         - Im Team wurde der Zielwert des Bestands i.H.v. y € noch nicht erreicht. Aktuell liegt der Bestand bei x €.
-        - Der Zielwert des Neu-/Mehrgeschäftes i.H.v. y € wurde bislang noch nicht erreicht und beträgt derzeit y €.
+        - Der Zielwert des Neu-/Mehrgeschäftes i.H.v. y € wurde bislang noch nicht erreicht und beträgt derzeit y €."
         
         Schritt 3: Extrahiere die Kennzahlen für die Zielart 3 Persönliche Ziele Messgröße Bestand (Privat + SMC) sowie Messgröße Bestand (MidCorp). Extrahiere die jeweilige Zielerreichung und fasse das Ergebnis wie folgt zusammen: 
-        Zielart 3 Persönliche Ziele: Messgröße Bestandsziele:
+        "### Persönliche Ziele: 
+        #### Bestandsziele:
         - x von y Maklern konnten den Bestand (Privat + SMC) im Vergleich zum Vorjahr steigern.
         - x von y Maklern konnten den Bestand (MidCorp) im Vergleich zum Vorjahr steigern.
-        - Ingesamt hat Dein Maklerportfolio ein Bestandsvolument von x €, im Vorjahr wurden y € erreicht.
+        - Ingesamt hat Dein Maklerportfolio ein Bestandsvolument von x €, im Vorjahr wurden y € erreicht."
         
         Schritt 4: Extrahiere die Kennzahlen für die Messgröße Neu-/Mehrgeschäftsziele innerhalb der Zielart 3 Persönliche Ziele. Ermittle die Zielerreichung und fasse das Ergebnis wie folgt zusammen:
-        Messgröße Neu-/Mehrgeschäftsziele:
+        "#### Neu-/Mehrgeschäftsziele:
         - x von y Makern konnten das Neu/Mehrgeschäft (Privat + SMC) im Vergleich zum Vorjahr steigern.
         - x von y Makern konnten das Neu/Mehrgeschäft (MidCorp) im Vergleich zum Vorjahr steigern. 
-         - Ingesamt hat Dein Maklerportfolio ein Neu-/Mehrgeschäft von x €, im Vorjahr wurden y € erreicht.
+         - Ingesamt hat Dein Maklerportfolio ein Neu-/Mehrgeschäft von x €, im Vorjahr wurden y € erreicht."
         
         Schritt 5: Extrahiere die Kennzahlen für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele. Ermittle die Zielerreichung und fasse das Ergebnis wie folgt zusammen:
-        Messgröße Produktive Makler :
-        - x von y Maklern sind bereits produktiv.
+       "#### Produktive Makler :
+        - x von y Maklern sind bereits produktiv."
         
-        Schritt 6: Biete weitere Unterstützung an.
+        Schritt 6: Biete weitere Unterstützung an. Folge diesem Musterbeispiel:
+        "Falls Du weitere Fragen hast lass es mich wissen."
         """
         ]
     
+    """
     with app.app_context():
         return run_prompts_with_temp_thread("target_analyze", prompt_steps)
+    """
+        
+    return prompt_steps
 
 def get_abteilungsziele():
     prompt_steps = [
@@ -242,58 +259,42 @@ def get_produktive_makler():
         
 def target_gap():
     logger.info('target_gap function triggered')
-        
-    output_template_final = {
-            """
-            Ich habe Dein Maklerportfolio analysiert und Zielkorrelationen berücksichtig um deine persönlichen Ziele effizient zu erreichen.
-            - Dem Makler (Accountname, Strukturnummer MSN06) fehlen noch XX TEUR im Bestandsgeschäft (Privat + SMC) um das VJ Ziel zu erreichen. Gleichzeitig wird er dadurch produktiv.
-            - Dem Makler (Accountname, Strukturnummer MSN06) fehlen noch XX TEUR im Bestandsgeschäft (MC) um das VJ Ziel zu erreichen. Gleichzeitig wird er dadurch produktiv.
-            - Dem Makler(Accountname, Strukturnummer MSN06) benötigt noch ein Neu-/Mehrgeschäft (Privat+SMC) von XX TEUR um das VJ Ziel zu erreichen. Gleichzeitig wird er dadurch produktiv.
-            \nDurch die Steigerung des Bestandsgeschäfts und Mehr-/Neubeitrag dieser Makler erreichst Du effizient und optimal Deine Ziele:
-            Bestandsziele:
-            - 5 von 5 Maklern werden den Bestand (Privat + SMC) im Vergleich zum Vorjahr steigern. 
-            - X von 8 Maklern werden den Bestand (Firmen MC) im Vergleich zum Vorjahr steigern.
-            Ingesamt wird Dein Maklerportfolio ein Bestandsvolument von X TEUR erreichen, im VJ wurden X TEUR erreicht.
-            \nNeu-/Mehrgeschäftsziele:
-            - 7 von 8 Makern werden das Neu/Mehrgeschäft(Privat + SMC) im Vergleich zum Vorjahr steigern. 
-            - 7 von 8 Makern werden das Neu/Mehrgeschäft(Firmen MC) im Vergleich zum Vorjahr steigern.
-            \nIngesamt wird Dein Maklerportfolio ein Neu-/Mehrgeschäft von X TEUR haben, im VJ wurden X TEUR erreicht.
-            \nProduktive Makler: 
-            - 7 von 7 Maklern werden produktiv.
-            """
-        }
-
-    #result3 = get_bestandsziele()
-    #result4 = get_neugeschaeftsziele()
-    #result5 = get_produktive_makler()
     
     prompt_steps = [
-            f"""
-            Analysiere das Maklerportfolio von Account Manager Max Mustermann und mache Vorschläge, wie dieser seine persönlichen Ziele effizient erreichen kann. Berücksichtige dabei die Korrelationen zwischen den verschiedenen Zielarten. Durchlaufe dafür folgende Schritte, nenne die Schritte aber nicht in deiner Antwort.
+        """
+        Analysiere das Maklerportfolio von Account Manager Max Mustermann und mache Vorschläge, wie dieser seine persönlichen Ziele effizient erreichen kann. 
+        Berücksichtige dabei die Korrelationen zwischen den verschiedenen Zielarten. Durchlaufe dafür folgende Schritte, nenne die Schritte aber nicht in deiner Antwort.
 
-            Schritt 1: Analysiere das Maklerportfolio für die verschiedenen Messgrößen in der Zielart 3 Persönliche Ziele und stelle dar, welche Kennzahlen sich in welcher Höhe verändern müssten, um diese Ziele zu erreichen. Konzentriere dich auf diejenigen Kennzahlen, die aufgrund einer Zielkorrelation den größten Effekt auf die Zielerreichung der meisten Ziele haben. Fasse das Ergebnis wie folgt zusammen:
-            - Der Makler (Accountname, Strukturnummer MSN06) fehlen noch x € im Bestandsgeschäft (Privat + SMC) um das VJ Ziel zu erreichen. Gleichzeitig wird er dadurch produktiv. 
-            - Der Makler (Accountname, Strukturnummer MSN06) fehlen noch x € im Bestandsgeschäft (MidCorp) um das VJ Ziel zu erreichen. Gleichzeitig wird er dadurch produktiv.
-            - Der Makler(Accountname, Strukturnummer MSN06) benötigt noch ein Neu-/Mehrgeschäft (Privat+SMC) von x € um das VJ Ziel zu erreichen. Gleichzeitig wird er dadurch produktiv.
-            
-            Schritt 2: Nimm an, die Makler verbessern ihre Messgrößen entsprechend deiner Analyse. Wieviele Makler werden dann ihren Bestand im Vergleich zum Vorjahr steigern? Wieviele Makler werden dadurch produktiv? Fasse deine Ergebniss wie folgt zusammen:
-            Bestandsziele:
-            - x von y Maklern werden den Bestand (Privat + SMC) im Vergleich zum Vorjahr steigern. 
-            - x von y Maklern werden den Bestand (MidCorp) im Vergleich zum Vorjahr steigern.
-            Ingesamt wird Dein Maklerportfolio ein Bestandsvolument von x € erreichen, im VJ wurden y € erreicht.
-            
-            Neu-/Mehrgeschäftsziele:
-            - x von y Makern werden das Neu/Mehrgeschäft(Privat + SMC) im Vergleich zum Vorjahr steigern.
-            - x von y Makern werden das Neu/Mehrgeschäft(MidCorp) im Vergleich zum Vorjahr steigern.
-            Ingesamt wird Dein Maklerportfolio ein Neu-/Mehrgeschäft von x € haben, im VJ wurden y € erreicht.
-            
-            Produktive Makler: 
-            - x von y Maklern werden produktiv.
-            """
+        Schritt 1: Analysiere das Maklerportfolio für die verschiedenen Messgrößen in der Zielart 3 Persönliche Ziele und stelle dar, welche Kennzahlen sich in welcher Höhe verändern müssten, um diese Ziele zu erreichen. Konzentriere dich auf diejenigen Kennzahlen, die aufgrund einer Zielkorrelation den größten Effekt auf die Zielerreichung der meisten Ziele haben. Fasse das Ergebnis wie folgt zusammen:
+        "Ich habe Dein Maklerportfolio analysiert und Zielkorrelationen berücksichtig um deine persönlichen Ziele effizient zu erreichen.
+        
+        #### Ausgangssituation:
+        - Der Makler (Accountname, Strukturnummer MSN06) fehlen noch x € im Bestandsgeschäft (Privat + SMC) um das VJ Ziel zu erreichen. Gleichzeitig wird er dadurch produktiv. 
+        - Der Makler (Accountname, Strukturnummer MSN06) fehlen noch x € im Bestandsgeschäft (MidCorp) um das VJ Ziel zu erreichen. Gleichzeitig wird er dadurch produktiv.
+        - Der Makler(Accountname, Strukturnummer MSN06) benötigt noch ein Neu-/Mehrgeschäft (Privat+SMC) von x € um das VJ Ziel zu erreichen. Gleichzeitig wird er dadurch produktiv."
+        
+        Schritt 2: Nimm an, die Makler verbessern ihre Messgrößen entsprechend deiner Analyse. Wieviele Makler werden dann ihren Bestand im Vergleich zum Vorjahr steigern? Wieviele Makler werden dadurch produktiv? Fasse deine Ergebniss wie folgt zusammen:
+        "#### Bestandsziele:
+        - x von y Maklern werden den Bestand (Privat + SMC) im Vergleich zum Vorjahr steigern. 
+        - x von y Maklern werden den Bestand (MidCorp) im Vergleich zum Vorjahr steigern.
+        Ingesamt wird Dein Maklerportfolio ein Bestandsvolument von x € erreichen, im VJ wurden y € erreicht."
+        
+       #### Neu-/Mehrgeschäftsziele:
+        - x von y Makern werden das Neu/Mehrgeschäft(Privat + SMC) im Vergleich zum Vorjahr steigern.
+        - x von y Makern werden das Neu/Mehrgeschäft(MidCorp) im Vergleich zum Vorjahr steigern.
+        Ingesamt wird Dein Maklerportfolio ein Neu-/Mehrgeschäft von x € haben, im VJ wurden y € erreicht."
+        
+        #### Produktive Makler: 
+        - x von y Maklern werden produktiv."
+        """
         ]
     
+    """
     with app.app_context():
-        return run_prompts_with_temp_thread("target_analyze", prompt_steps)
+        return run_prompts_with_temp_thread("target_gap", prompt_steps)
+    """
+    
+    return prompt_steps
 
 def team_analyze():
     logger.info('team_analyze function triggered')
@@ -312,21 +313,28 @@ def productive_broker_analyze():
         """
         Ermittle die Makler von Account Manager Max Mustermann, die die Zielvorgaben für die Messgröße Produktive Makler innerhalb der Zielart 3 Persönliche Ziele erreichen. 
         Entnimm die Einteilung "produktiv ja/nein" direkt der korrespondierenden Tabelle und Spalte in Maklervertrieb Zahlen. Antworte entsprechend folgendem Musterbeispiel und füge keinen zusätzlichen Text hinzu:
-        Im Folgenden findest Du eine Auflistung deiner produktiven Makler:
-        Makler A Strukturnummer 1:
+        "Im Folgenden findest Du eine Auflistung deiner produktiven Makler:
+        
+        #### Makler A Strukturnummer 1:
         - Bestand gesamt Ist: x€, Bestand Gesamt Vorjahr: y€; Teilkriterium Bestand Ist > Bestand Vorjahr: nicht erfüllt
         - Neu-/Mehrgeschäft Ist: x€ Teilkriterium Neu-/Mehrgeschäft i.H.v. y%  des Bestandes (min. aber z €): nicht erfüllt
         - Produktiv Ja/Nein: [Wert]
-        Makler B Strukturnummer 2:
+        
+        #### Makler B Strukturnummer 2:
         - Bestand gesamt Ist: x €, Bestand Gesamt Vorjahr:y€; Teilkriterium Bestand Ist > Bestand Vorjahr: erfüllt
         - Neu-/Mehrgeschäft Ist: x € Teilkriterium Neu-/Mehrgeschäft i.H.v. y %  des Bestandes (min. aber z €): erfüllt
         - Produktiv Ja/Nein: [Wert]
-        ...
+        
+        ..."
         """
         ]
     
+    """
     with app.app_context():
         return run_prompts_with_temp_thread("productive_broker_analyze", prompt_steps)
+    """
+    
+    return prompt_steps
 
 def generate_follow_up_questions(response_text):
     if not isinstance(response_text, str):
@@ -404,6 +412,7 @@ class EventHandler(AssistantEventHandler):
     def __init__(self):
         super().__init__()
         self.results = []  # Initialize the results list
+        self.last_appended_citation = None  # Track the last appended citation
 
     @override
     def on_text_created(self, text) -> None:
@@ -417,19 +426,22 @@ class EventHandler(AssistantEventHandler):
     def on_text_delta(self, delta, snapshot):
         """Handle the event when there is a text delta (partial text)."""
         # Log the delta value (partial text)
-        logging.info("%s", delta.value)
+        #logging.info("%s", delta.value)
         # Append the delta value to the results list
         annotations = delta.annotations
-        if annotations: #hanlde reference annotation
+        if annotations: #handle reference annotation
             for annotation in annotations:
                 if annotation.type == 'file_citation':
                     file_citation = annotation.file_citation
-                    vector_store_file = client.files.retrieve(
-                        file_id=file_citation.file_id
-                    )
-                    citation_text = f" [{vector_store_file.filename}]"
-                    self.results.append(citation_text)
-                    #combined_message += citation_text
+                    if file_citation:  # Add check here
+                        vector_store_file = client.files.retrieve(
+                            file_id=file_citation.file_id
+                        )
+                        citation_text = f" [{vector_store_file.filename}]"
+                        # Check for duplicate citations
+                        if self.last_appended_citation != citation_text:
+                            self.results.append(citation_text)
+                            self.last_appended_citation = citation_text
         else:
             self.results.append(delta.value)
         
@@ -472,37 +484,42 @@ class EventHandler(AssistantEventHandler):
     
         for tool in data.required_action.submit_tool_outputs.tool_calls:
             if tool.function.name == "team_analyze":
-                result = team_analyze()
                 logger.info('providing team_analyze function results')
+                result = team_analyze()
                 tool_outputs.append({
                     "tool_call_id": tool.id,
                     "output": f'Aktuelle Team Performancedaten: {result}'
                 })
             elif tool.function.name == "create_appointment":
+                logger.info('providing create_apppointment function results')
                 result = team_analyze()
                 tool_outputs.append({
                     "tool_call_id": tool.id,
                     "output": f'Kalendernachricht: {result}'
                 })
             elif tool.function.name == "create_appointment_task":
+                logger.info('providing create_appointment_task function results')
                 result = create_appointment_task()
                 tool_outputs.append({
                     "tool_call_id": tool.id,
                     "output": f'Es gibt Mögliche freie Termine am : {result}'
                 })
             elif tool.function.name == "target_analyze":
+                logger.info('providing target_analyze function results')
                 result = target_analyze()
                 tool_outputs.append({
                     "tool_call_id": tool.id,
                     "output": f'Im Folgenden findest Du eine aktuelle Auflistung: {result}'
                 })
             elif tool.function.name == "target_gap":
+                logger.info('providing target_gap function results')
                 result = target_gap()
                 tool_outputs.append({
                     "tool_call_id": tool.id,
                     "output": f'Ich habe Dein Maklerportfolio analysiert und Zielkorrelationen berücksichtigt um deine persönlichen Ziele effizient zu erreichen.: {result}'
                 })
             elif tool.function.name == "productive_broker_analyze":
+                logger.info('providing productive_broker function results')
                 result = productive_broker_analyze()
                 tool_outputs.append({
                     "tool_call_id": tool.id,
@@ -531,7 +548,7 @@ class EventHandler(AssistantEventHandler):
         logging.info("Thread run completed")
 
 # Function to handle streaming responses from OpenAI
-def handle_streaming_response(mystream, user_id, prompt, assistant_id, multiple):
+def handle_streaming_response(user_input, user_id, prompts, assistant_id, multiple):
     global analysis_result
     global assistant
     global thread
@@ -539,50 +556,68 @@ def handle_streaming_response(mystream, user_id, prompt, assistant_id, multiple)
     suggestions = []
 
     try:
-        if mystream is None:
-            if assistant is None: assistant = client.beta.assistants.retrieve(assistant_id)
-            if thread is None: thread = client.beta.threads.create()
+        combined_message = ""
+        suggestions = generate_follow_up_questions(user_input)
+        if assistant is None: assistant = client.beta.assistants.retrieve(assistant_id)
+        if thread is None: thread = client.beta.threads.create()
+        
+        # Loop through each prompt
+        for i, prompt in enumerate(prompts):
+            logging.info(f"Processing prompt {i+1}/{len(prompts)}")
+
+            # Create thread message
             thread_message = client.beta.threads.messages.create(
                 thread_id=thread.id,
                 role="user",
                 content=prompt,
             )
-    
-            event_handler = EventHandler()  # Instantiate the event handler
 
+            # Use EventHandler for streaming response
+            event_handler = EventHandler()
             stream = client.beta.threads.runs.stream(
                 thread_id=thread.id,
                 assistant_id=assistant.id,
                 event_handler=event_handler,
             )
-        else:
-            stream = mystream
-        
-        if multiple is None:
-            combined_message = ""
-        
-        if prompt is not None:
-            suggestions = generate_follow_up_questions(prompt)
-        
-        with stream as stream:
-            for _chunk in stream:  # Iterate over the chunks
-                results = ''.join(stream.results)
-                full_result = combined_message + results
-                if user_id in streaming_responses:
-                    streaming_responses[user_id].append({"role": "assistant", "content": format_message_content(full_result), "is_streaming": True, "suggestions": []})
-                else:
-                    streaming_responses[user_id] = [{"role": "assistant", "content": format_message_content(full_result), "is_streaming": True, "suggestions": []}]
-            
-            # Final response update indicating completion
-            if multiple is None:
-                streaming_responses[user_id].append({"role": "assistant", "content": format_message_content(full_result), "is_streaming": False, "suggestions": suggestions})
-            else:
-                combined_message = full_result + "\n"
 
+            # Collect response parts
+            with stream as stream_context:
+                for chunk in stream_context:
+                    response = ''.join(stream_context.results)
+                    #response_parts.append(response)
+                    full_response = combined_message + response
+                    # Update streaming response
+                    if user_id in streaming_responses:
+                        streaming_responses[user_id].append({
+                            "role": "assistant",
+                            "content": format_message_content(full_response),
+                            "is_streaming": True,
+                            "suggestions": []
+                        })
+                    else:
+                        streaming_responses[user_id] = [{
+                            "role": "assistant",
+                            "content": format_message_content(full_response),
+                            "is_streaming": True,
+                            "suggestions": []
+                        }]
+
+            # Combine the parts for final response
+            combined_message += full_response + "\n"
+
+            # If it's the last prompt, finalize the response
+            if i == len(prompts) - 1:
+                streaming_responses[user_id].append({
+                    "role": "assistant",
+                    "content": format_message_content(combined_message),
+                    "is_streaming": False,
+                    "suggestions": suggestions
+                })
+
+        # Finalize the analysis result
         analysis_result['messages'] = combined_message
         analysis_result['suggestions'] = suggestions
         logging.info("Task completed successfully")
-        
         task_completed.set()
 
     except Exception as e:
@@ -591,6 +626,45 @@ def handle_streaming_response(mystream, user_id, prompt, assistant_id, multiple)
             streaming_responses[user_id].append({"role": "assistant", "content": f"Error: {str(e)}"})
         else:
             streaming_responses[user_id] = [{"role": "assistant", "content": f"Error: {str(e)}"}]
+
+# Vordefinierte Fragen oder Konzepte, zu denen du eine spezielle Antwort geben möchtest
+reference_prompts = [
+    "Wo stehe ich in Hinblick auf meine quantitative Zielerreichung?",
+    "Wie erreiche ich meine persönlichen Ziele?",
+    "Wer sind meine produktiven Makler?"
+]
+
+# Funktion, um semantische Ähnlichkeit zwischen zwei Texten zu berechnen
+def get_semantic_similarity(prompt1, prompt2):
+    embedding1 = client.embeddings.create(input=prompt1, model="text-embedding-3-small").data[0].embedding
+    embedding2 = client.embeddings.create(input=prompt2, model="text-embedding-3-small").data[0].embedding
+
+    # Berechne die Ähnlichkeit (z. B. Kosinus-Ähnlichkeit)
+    similarity = cosine_similarity(embedding1, embedding2)
+    return similarity
+
+# Kosinus-Ähnlichkeit zwischen zwei Vektoren berechnen
+def cosine_similarity(vec1, vec2):
+    dot_product = sum(a * b for a, b in zip(vec1, vec2))
+    magnitude1 = sum(a * a for a in vec1) ** 0.5
+    magnitude2 = sum(b * b for b in vec2) ** 0.5
+    return dot_product / (magnitude1 * magnitude2)
+
+# Funktion zur Überprüfung der Ähnlichkeit und Rückgabe des ähnlichsten reference_prompts
+def get_most_similar_prompt(user_prompt, reference_prompts, threshold=0.85):
+    most_similar_prompt = None
+    highest_similarity = threshold  # Starte mit dem Schwellwert als Basis
+    
+    for ref_prompt in reference_prompts:
+        similarity = get_semantic_similarity(user_prompt, ref_prompt)
+        #logger.info(f"Similarity: {user_prompt} {ref_prompt} {similarity}")
+        
+        # Aktualisiere, wenn eine höhere Ähnlichkeit gefunden wird
+        if similarity > highest_similarity:
+            highest_similarity = similarity
+            most_similar_prompt = ref_prompt
+    
+    return most_similar_prompt
 
 @app.route('/chat', methods=['POST'])
 def chat():
@@ -608,9 +682,28 @@ def chat():
     # Initialize the user's response collection
     streaming_responses[user_id] = []
     
+    # Ähnlichsten reference_prompt finden
+    similar_prompt = get_most_similar_prompt(user_input, reference_prompts)
+    
+    # Prompt modifizieren, wenn eine Ähnlichkeit gefunden wurde
+    if similar_prompt:
+        if similar_prompt == reference_prompts[0]:
+            modified_prompt = target_analyze()
+        elif similar_prompt == reference_prompts[1]:
+            modified_prompt = target_gap()
+        elif similar_prompt == reference_prompts[2]:
+            modified_prompt = productive_broker_analyze()
+        else:
+            modified_prompt = similar_prompt
+        logger.info(f"Modified prompt: {modified_prompt}")
+    else:
+        modified_prompt = user_input
+    
+    prompts = modified_prompt if isinstance(modified_prompt, list) else [modified_prompt]
+    
     # Start the streaming response in a separate thread
     logger.info("Starting background task")
-    threading.Thread(target=handle_streaming_response, args=(None, user_id, user_input, assistant_id, None)).start()
+    threading.Thread(target=handle_streaming_response, args=(similar_prompt, user_id, prompts, assistant_id, None)).start()
     
     return jsonify({"status": "streaming", "user_id": user_id})
 
