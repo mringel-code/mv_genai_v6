@@ -70,6 +70,7 @@ def allowed_file(filename):
 def format_message_content(content):
     if not isinstance(content, str):
         content = str(content)
+    
     # Replace headers
     content = re.sub(r'###### (.*?)\n', r'<h6>\1</h6>', content)
     content = re.sub(r'##### (.*?)\n', r'<h5>\1</h5>', content)
@@ -77,10 +78,22 @@ def format_message_content(content):
     content = re.sub(r'### (.*?)\n', r'<h3>\1</h3>', content)
     content = re.sub(r'## (.*?)\n', r'<h2>\1</h2>', content)
     content = re.sub(r'# (.*?)\n', r'<h1>\1</h1>', content)
+    
     # Bold text
     content = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', content)
+    
     # Convert new lines to <br>
     content = content.replace('\n', '<br>')
+    
+    # Handle consecutive citations
+    def replace_citations(m):
+        # Extract the citation content
+        citation_content = m.group(2)
+        return f' [{citation_content}]'
+    
+    # Match single and consecutive duplications and replace
+    content = re.sub(r'(【\d+:\d+†(.*?)】)+', replace_citations, content)
+    
     return content
 
 assistant = None
@@ -183,7 +196,7 @@ def target_analyze():
         "### Abteilungsziele:
          - Die Schadenquote liegt mit xx,xx % derzeit im Zielbereich (Zielgröße yy,yy %)."
         
-        Schritt 2: Extrahiere die Kennzahlen für Zielart 1 Abteilungsziele. Ermittle die Zielerreichung und fasse das Ergebnis dieses Schritts wie folgt zusammen:
+        Schritt 2: Extrahiere die Kennzahlen für Zielart 2 Teamziele. Ermittle die Zielerreichung und fasse das Ergebnis dieses Schritts wie folgt zusammen:
         "### Teamziele:
         - Im Team wurde der Zielwert des Bestands i.H.v. y € noch nicht erreicht. Aktuell liegt der Bestand bei x €.
         - Der Zielwert des Neu-/Mehrgeschäftes i.H.v. y € wurde bislang noch nicht erreicht und beträgt derzeit y €."
@@ -426,8 +439,10 @@ class EventHandler(AssistantEventHandler):
     def on_text_delta(self, delta, snapshot):
         """Handle the event when there is a text delta (partial text)."""
         # Log the delta value (partial text)
-        #logging.info("%s", delta.value)
-        # Append the delta value to the results list
+        logging.info("%s", delta.value)
+        self.results.append(delta.value) # Append the delta value to the results list
+        
+        """
         annotations = delta.annotations
         if annotations: #handle reference annotation
             for annotation in annotations:
@@ -437,6 +452,7 @@ class EventHandler(AssistantEventHandler):
                         vector_store_file = client.files.retrieve(
                             file_id=file_citation.file_id
                         )
+                        logging.info("citation %s", delta.value)
                         citation_text = f" [{vector_store_file.filename}]"
                         # Check for duplicate citations
                         if self.last_appended_citation != citation_text:
@@ -444,7 +460,8 @@ class EventHandler(AssistantEventHandler):
                             self.last_appended_citation = citation_text
         else:
             self.results.append(delta.value)
-        
+            logging.info("%s", delta.value)
+        """
 
     def on_tool_call_created(self, tool_call):
         """Handle the event when a tool call is created."""
